@@ -1,0 +1,4 @@
+interface:
+  display_name: "LoomHarness для Codex"
+  short_description: "Задачи с файлами, данными, приложениями и кодом"
+  default_prompt: "Use $loomharness on my original request and reply in its language."

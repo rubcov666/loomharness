@@ -1,0 +1,9 @@
+{
+  "name": "opencode-plugin-loomharness",
+  "version": "1.0.0",
+  "description": "LoomHarness bridge for opencode: routes hook events to the portable Python core (evidence gate, prompt hints).",
+  "type": "module",
+  "main": "index.js",
+  "exports": "./index.js",
+  "license": "MIT"
+}

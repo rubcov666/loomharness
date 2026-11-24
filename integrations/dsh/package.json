@@ -1,0 +1,11 @@
+{
+  "name": "dsh-bundle-loomharness",
+  "version": "1.0.0",
+  "description": "DSH bundle: connects the LoomHarness MCP server (compact I/O tools) to DeepSeek Harness agents.",
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    }
+  }
+}
