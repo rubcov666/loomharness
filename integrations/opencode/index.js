@@ -12,7 +12,7 @@ function helperPath() {
   return existsSync(candidate) ? candidate : null;
 }
 
-// Каноническое событие -> Python-ядро -> решение (null, deny или additionalContext).
+// Map the event through the Python core and return null, deny or additionalContext.
 function runCore(event) {
   const helper = helperPath();
   if (!helper) return null;

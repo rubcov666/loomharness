@@ -55,7 +55,7 @@ def main():
     seed("2.0.0", "v2")
 
     os.environ["CODEX_HOME"] = str(TMP / "home")
-    # Модули грузим из install-копии: skill_root() указывает на неё.
+    # Load from the installed copy so skill_root() resolves to that copy.
     sys.path.insert(0, str(install / "scripts"))
     import hk
     hk.load("self_update")

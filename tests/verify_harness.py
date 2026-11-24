@@ -12,7 +12,7 @@ import tempfile
 script = Path(sys.argv[1]).resolve()
 
 with tempfile.TemporaryDirectory() as fixture:
-    root = Path(fixture) / "Рабочая папка"
+    root = Path(fixture) / "Working directory Ω"
     root.mkdir()
     temp = Path(fixture) / "temp"
     temp.mkdir()
@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory() as fixture:
     english.mkdir()
     en_question = "Enable LoomHarness hooks for this project?"
     initial = note(event("SessionStart", cwd=english))
-    assert question in initial and en_question in initial and "LoomHarness on" in initial
+    assert en_question in initial and question not in initial and "LoomHarness on" in initial
     # A bare answer belongs only to the preceding question in this session and project.
     event("Stop", last_assistant_message="A quote: " + en_question, cwd=english)
     assert event("UserPromptSubmit", prompt="Yes", cwd=english) is None
@@ -53,9 +53,9 @@ with tempfile.TemporaryDirectory() as fixture:
     assert "Project hooks disabled." in note(event("UserPromptSubmit", prompt="LoomHarness off", cwd=english))
     assert event("SessionStart", cwd=english) is None
     assert "Project hooks enabled." in note(event("UserPromptSubmit", prompt="LoomHarness on", cwd=english))
-    assert question in note(event("SessionStart"))
+    assert en_question in note(event("SessionStart"))
     assert event("UserPromptSubmit", prompt="да") is None
-    other = Path(fixture)/"Другой проект"
+    other = Path(fixture)/"Other project"
     other.mkdir()
     event("Stop", last_assistant_message=question, cwd=other)
     assert event("UserPromptSubmit", prompt="нет", session="other-thread", cwd=other) is None
@@ -69,18 +69,18 @@ with tempfile.TemporaryDirectory() as fixture:
     assert "Project hooks disabled." in note(event("UserPromptSubmit", prompt="Отключи хуки LoomHarness", cwd=other))
     nested = other/"nested"
     nested.mkdir()
-    assert question in note(event("SessionStart", cwd=nested))
+    assert en_question in note(event("SessionStart", cwd=nested))
     (other/".git").mkdir()
     assert event("SessionStart", cwd=nested) is None
     (nested/".git").mkdir()
-    assert question in note(event("SessionStart", cwd=nested))
+    assert en_question in note(event("SessionStart", cwd=nested))
     # A quoted conversation or a yes from a different project cannot grant consent.
-    event("Stop", last_assistant_message="Пример: "+question)
+    event("Stop", last_assistant_message="Example: "+question)
     assert event("UserPromptSubmit", prompt="да") is None
     event("Stop", last_assistant_message=question)
     assert event("UserPromptSubmit", prompt="да", cwd=nested) is None
     assert event("UserPromptSubmit", prompt="да") is None
-    assert question in note(event("SessionStart", source="compact"))
+    assert en_question in note(event("SessionStart", source="compact"))
     event("Stop", last_assistant_message=question)
     event("Stop", session="overlapping", last_assistant_message=question)
     first_enabled = note(event("UserPromptSubmit",prompt="Да!"))
@@ -91,8 +91,8 @@ with tempfile.TemporaryDirectory() as fixture:
     assert not (Path(env["CODEX_HOME"]) / "loomharness" / "teams").exists()
     # A repeat SessionStart of the same chat injects nothing (receipt dedup).
     assert event("SessionStart") is None
-    assert event("UserPromptSubmit", prompt="Продолжи разбор") is None
-    old_chat = {"session": "already-open", "prompt": "Проверь все журналы"}
+    assert event("UserPromptSubmit", prompt="Continue the investigation") is None
+    old_chat = {"session": "already-open", "prompt": "Check all logs"}
     old_key = "project-v8\0already-open\0" + os.path.normcase(str(root.resolve()))
     with closing(sqlite3.connect(Path(env["CODEX_HOME"]) / "loomharness/projects.sqlite3")) as db, db:
         db.execute("INSERT INTO delegation_notices VALUES (?)", (hashlib.sha256(old_key.encode()).digest(),))
@@ -121,7 +121,7 @@ with tempfile.TemporaryDirectory() as fixture:
     assert event("PreToolUse") is None
     run("enable")
     run("enable")
-    assert "вне Git" in run("status")
+    assert "Outside a Git repository" in run("status")
     # The project is a team board now, so the hint version changed: the first
     # SessionStart of this chat gets the updated hint once, a repeat none.
     startup = note(event("SessionStart"))
@@ -129,12 +129,12 @@ with tempfile.TemporaryDirectory() as fixture:
     assert "scripts/view.py" in startup and "loomharness" in startup and by_request in startup
     assert "Git:" not in startup
     assert event("Stop") is None
-    assert event("UserPromptSubmit", prompt="Разбери все журналы и укажи ошибки") is None
+    assert event("UserPromptSubmit", prompt="Read the logs and report the errors") is None
     assert denied(target="docs/features.json")
     assert event("PreToolUse", target="docs/readme.md") is None
     run("read", "missing.log", ok=False)
-    evidence = root / "тест проверки.log"
-    evidence.write_text("Начало\nК1 PASS\nШум\nК1 FAIL\n", encoding="utf8")
+    evidence = root / "verification Ω.log"
+    evidence.write_text("Start\nC1 PASS\nNoise\nC1 FAIL\n", encoding="utf8")
     (root / ".codex").mkdir(exist_ok=True)
     (root / ".codex/harness-plan.json").write_text(json.dumps({"state_files": ["tracking/decisions.csv"]}))
     decisions = root / "tracking/decisions.csv"
@@ -143,21 +143,21 @@ with tempfile.TemporaryDirectory() as fixture:
     assert denied(target=str(decisions))
     assert event("PreToolUse", target="tracking/summary.csv") is None
     run("read", str(decisions), ok=False)
-    run("read", evidence.name, "--find", "К2", ok=False)
+    run("read", evidence.name, "--find", "C2", ok=False)
     assert denied()
-    page = run("read", evidence.name, "--find", "К1", "--lines", "1")
-    assert "2: К1 PASS" in page and "--start 4" in page and "Шум" not in page
+    page = run("read", evidence.name, "--find", "C1", "--lines", "1")
+    assert "2: C1 PASS" in page and "--start 4" in page and "Noise" not in page
     assert not event("PreToolUse")
     assert event("PreToolUse", target=str(decisions)) is None
-    assert run("read", evidence.name, "--find", "К1", "--start", "4").strip() == "4: К1 FAIL"
-    assert run("read", evidence.name, "--find", "К1").splitlines() == ["2: К1 PASS", "4: К1 FAIL"]
-    evidence.write_text("К1 выполнен\nК2 выполнен\n", encoding="utf8")
+    assert run("read", evidence.name, "--find", "C1", "--start", "4").strip() == "4: C1 FAIL"
+    assert run("read", evidence.name, "--find", "C1").splitlines() == ["2: C1 PASS", "4: C1 FAIL"]
+    evidence.write_text("C1 done\nC2 done\n", encoding="utf8")
     run("read", evidence.name, "--start", "10", ok=False)
     assert denied()
-    assert "2: К2 выполнен" in run("read", evidence.name, "--start", "2", "--lines", "1")
+    assert "2: C2 done" in run("read", evidence.name, "--start", "2", "--lines", "1")
     assert event("PreToolUse") is None
     assert denied(session="other-thread")
-    evidence.write_text("новый результат", encoding="utf8")
+    evidence.write_text("new result", encoding="utf8")
     assert denied()
     run("read", evidence.name)
     receipts, = temp.glob("codex-harness-evidence*")

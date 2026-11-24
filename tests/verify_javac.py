@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory() as temp:
     unchanged, log = build()
     assert b"cache hit" in log and unchanged == first
     # A shell wrapper reads the path independently of the console's encoding.
-    pointer = root / "классы с пробелом.txt"
+    pointer = root / "compiled classes Ω.txt"
     wrapper = [*cmd, "--path-file", pointer]
     for expected in (b"compiled", b"cache hit"):
         p = subprocess.run(wrapper, capture_output=True, check=True)

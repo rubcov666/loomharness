@@ -1,22 +1,22 @@
-# Независимая приёмка
+# Independent acceptance
 
-Координатор получает пары `id, revision` через `team.py inbox --reviews`. Следующий вызов с `--after CURSOR --wait SECONDS` отслеживает готовые ревизии, остановку и паузу доски. Выдавай `team.py review ID --expect-revision SHA` по полученной паре. Для нескольких карточек повторяй `--expect-revision` в порядке ID. При смене SHA прочитай новое событие. Уже выданную работу можно найти через `job ID`. Ревьюер завершает ход после решения или сообщения о блокировке. Координатор возобновляет его при новом поручении или разрешении блокировки.
+The coordinator reads `id, revision` pairs with `team.py inbox --reviews`. Use `--after CURSOR --wait SECONDS` for revisions, stop or pause. Issue `team.py review ID --expect-revision SHA` for the returned pair. For multiple cards repeat `--expect-revision` in ID order. On SHA changes read the new event. Find an issued job with `job ID`. The reviewer ends its turn on a verdict or blocker. The coordinator resumes it for a new job or resolved blocker.
 
-Порядок координатора — в [organization.md](organization.md), выпуск принятого результата — в [delivery.md](delivery.md). Работа ревьюера во время фонового теста и выбор модели для этапа — в [adaptive-team.md](adaptive-team.md).
+[Coordinator procedure](organization.md) · [Delivery](delivery.md) · [Background review and model selection](adaptive-team.md)
 
-После сдачи работы выдай следующую независимую карточку на освободившееся место. Готовые действия бери из `inbox`. Поле `review_ready` предлагает до четырёх уже сданных карточек для свободного ревьюера. Отправь единственную готовую сразу. Для коротких карточек вызови `review ID1 ID2 …` и передай один brief в чат сильного ревьюера; для объёмной карточки подходит отдельное `review ID`. Исполнители продолжают работу во время приёмки. Пул ревью принимает до двух одновременных заданий: пока первое ждёт фоновый тест, ревьюер может взять второе. Выпуск остаётся последовательным.
+When a worker submits, use the freed slot for another independent card. Read ready actions from `inbox`. `review_ready` offers up to four submissions. Send a single ready item immediately. Batch short cards with `review ID1 ID2 …` and send one brief to the strong reviewer. Use a separate `review ID` for larger cards. Workers can continue during review. The review pool allows two jobs, so a second can use time while the first waits for a background test. Delivery stays sequential.
 
-Проверяющий выполняет `job-claim JOB БИЛЕТ` один раз, открывает указанную версию каждой работы и сверяет её с критерием и пограничными случаями. Координатор может заранее привязать чат через `job-bind JOB БИЛЕТ THREAD`. Для одного результата действует `verdict JOB БИЛЕТ approve "основание" --revision ХЕШ` или решение `changes` с описанием исправления. Для отдельного ответа внутри пакета добавь `--task ID`.
+A reviewer runs `job-claim JOB TICKET` once, opens the exact revisions and checks the criterion and edge cases. The coordinator can bind the chat first with `job-bind JOB TICKET THREAD`. Return `verdict JOB TICKET approve "reason" --revision HASH` or `changes` with a specific fix. For a verdict within a batch add `--task ID`.
 
-Готовые решения по нескольким карточкам передай одним вызовом `verdicts JOB БИЛЕТ файл.json` или через stdin с `-`. Например:
+Send multiple decisions with `verdicts JOB TICKET file.json` or `-` for stdin. For example:
 
 ```json
 [
-  {"task":12,"revision":"<хеш карточки 12>","decision":"approve","note":"Итог совпал с исходными данными"},
-  {"task":15,"revision":"<хеш карточки 15>","decision":"changes","note":"В пустом наборе результат должен быть нулевым"}
+  {"task":12,"revision":"<card 12 hash>","decision":"approve","note":"Total matches the source data"},
+  {"task":15,"revision":"<card 15 hash>","decision":"changes","note":"An empty input must produce zero"}
 ]
 ```
 
-Подставь фактические хеши из brief. Команда проверяет весь переданный список до фиксации. Можно передать часть пакета и дослать остальные решения позже. Каждое одобрение сразу открывает зависимые задачи и разрешает передачу этой версии по обычным правилам. Возврат направь тому же исполнителю. Если ответ команды потерян, сверь `job JOB` и поле `items`; точное повторение решения сохраняет прежний результат. После повторного возврата с одной причиной разбери блокер.
+Use the actual hashes from the brief. The command validates the whole submitted list before committing it. A partial batch can be completed later. An approval unblocks dependencies and authorizes delivery of that revision under the usual rules. Return rework to the same worker. If a response is lost, inspect `job JOB` and `items`. Repeating the identical verdict preserves the result. Investigate the blocker after a repeated return for the same reason.
 
-Для оценки скорости `usage` показывает в `dispatch_to_accept` число замеренных карточек и медиану секунд от первой выдачи до одобрения, включая ожидание и доработки. Отсчёт начинается у впервые выданных карточек после обновления.
+`usage` reports measured card count and median seconds from first dispatch to approval in `dispatch_to_accept`, including waiting and rework. Timing starts on cards first issued after the feature was installed.

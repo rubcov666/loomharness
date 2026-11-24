@@ -1,17 +1,17 @@
-"""Драйверы выдачи карточек через headless-режимы CLI и детектор моделей.
+"""Dispatch cards to headless CLIs and discover available models.
 
-`run` выполняет одну выданную карточку выбранным CLI в папке проекта: собирает
-промпт из доски команды, запускает headless-команду, полный вывод сохраняет в
-.loomharness/runs/, на stdout возвращает сводку с использованием токенов, если
-CLI её отдал в JSON.
+The run command builds a prompt from the card, launches the selected CLI in
+the project directory and saves the complete output under .loomharness/runs/.
+It prints a concise report and includes token usage when the CLI returns
+usage counters in JSON.
 
-`models` опрашивает установленные CLI и возвращает кандидатов в модели;
-`models --apply --routine ИМЯ` сохраняет быструю модель проекта в
-.codex/harness-models.json (её допуск решают слепые испытания team_models.py).
+The models command queries installed CLIs for candidate names.
+Use models --apply --routine NAME to save a project candidate in
+.codex/harness-models.json. Qualification uses blind trials in team_models.py.
 
-Подтверждённые документацией флаги: claude -p/--model/--output-format json;
-gemini -p/--output-format json. Помеченные experimental шаблоны
-(antigravity/opencode/dsh) сверьте с доками своей версии перед боевым запуском.
+Claude supports -p, --model and --output-format json. Gemini supports -p
+and --output-format json. Check the experimental Antigravity, OpenCode and
+DSH templates against the documentation for the version being used.
 """
 
 import argparse
@@ -27,7 +27,7 @@ import time
 
 try:
     import hk
-except ImportError:  # python -I исключает каталог скрипта из sys.path
+except ImportError:  # python -I excludes the script directory from sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import hk
 
@@ -38,7 +38,7 @@ MODEL_RE = re.compile(r"^[\w.:/-]{1,80}$")
 
 
 def decode_cli(data):
-    """Декодируем вывод CLI: utf-8, при неудаче — локальная кодировка консоли."""
+    """Decode UTF-8 output, falling back to the local console encoding."""
     if not data:
         return ""
     try:
@@ -49,7 +49,7 @@ def decode_cli(data):
 
 
 def kill_tree(proc):
-    """Убить всё дерево процессов, а не только прямого ребёнка."""
+    """Terminate the process and its descendants."""
     if os.name == "nt":
         subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
                        capture_output=True, timeout=15)
@@ -63,22 +63,22 @@ def kill_tree(proc):
 
 def argv_for(cli, prompt, model):
     model_args = ["--model", model] if model and cli in ("claude", "gemini", "antigravity") else []
-    if cli == "claude":      # документировано: claude -p "запрос" --output-format json
+    if cli == "claude":      # claude -p PROMPT --output-format json
         return ["claude", "-p", prompt, *model_args, "--output-format", "json"]
-    if cli == "gemini":      # документировано: gemini -p/--prompt, --output-format json
+    if cli == "gemini":      # gemini -p/--prompt, --output-format json
         return ["gemini", "-p", prompt, *model_args, "--output-format", "json"]
-    if cli == "antigravity":  # experimental: наследует интерфейс Gemini
+    if cli == "antigravity":  # Experimental Gemini-compatible interface.
         return ["antigravity", "-p", prompt, *model_args, "--output-format", "json"]
-    if cli == "opencode":     # experimental: opencode run "запрос"
+    if cli == "opencode":     # Experimental: opencode run PROMPT.
         return ["opencode", "run", prompt]
-    if cli == "dsh":          # experimental: dsh --profile headless "задача"
+    if cli == "dsh":          # Experimental: dsh --profile headless TASK.
         return ["dsh", "--profile", "headless", prompt]
     raise ValueError(f"unknown driver cli: {cli}")
 
 
 def parse_usage(cli, stdout):
-    # JSON с использованием ищем от конца вывода: берём последнее удачное
-    # дерево и извлекаем известные поля, не доверяя одному формату.
+    # Search backwards for the last complete JSON payload and extract known
+    # usage fields across supported response formats.
     text = (stdout or "").strip()
     for candidate in reversed(text.splitlines()):
         candidate = candidate.strip()
@@ -139,24 +139,24 @@ def run_card(a):
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"task-{a.task}-{a.ticket}.log"
     argv = argv_for(a.cli, prompt, a.model)
-    # npm-CLI на Windows ставятся .cmd/.bat-шимами: CreateProcess их не берёт,
-    # поэтому разрешаем имя через PATH и батчники гоняем через cmd /c.
+    # On Windows npm CLIs use .cmd/.bat shims. Resolve the program via PATH
+    # and launch batch files through cmd /c.
     resolved = shutil.which(argv[0])
     if resolved:
         argv[0] = resolved
     via_cmd = os.name == "nt" and argv[0].lower().endswith((".cmd", ".bat"))
     if via_cmd:
-        # cmd.exe разбивает командную строку по переводам строк — сворачиваем
-        # их в маркер, иначе промпт обрежется до первой строки. Нативные
-        # .exe получают многострочный промпт как есть.
+        # Newlines terminate cmd.exe commands. Preserve prompt boundaries with
+        # a visible separator for the batch shim. Native executables receive
+        # the original multiline prompt.
         argv = [a.replace("\n", " ¶ ") if isinstance(a, str) else a for a in argv]
-        # cmd /c снимает первую и последнюю кавычку командной строки: оборачиваем
-        # всё в двойные кавычки, чтобы внутренние кавычки аргументов уцелели.
+        # cmd /c strips outer quotes. Wrap the command to preserve quoted
+        # arguments inside it.
         command = 'cmd /c "' + subprocess.list2cmdline(argv) + '"'
     else:
         command = argv
-    # Отдельная группа процессов: при таймауте убиваем всё дерево, иначе
-    # внуки удерживают пайпы и communicate() ждёт их естественного конца.
+    # Isolate the process group so a timeout can terminate descendants that
+    # still hold the pipes open.
     popen_kw = {"cwd": str(root), "stdout": subprocess.PIPE, "stderr": subprocess.PIPE}
     if os.name == "nt":
         popen_kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -235,20 +235,20 @@ def detect_models():
 def models_command(a):
     if a.apply:
         if not a.routine or not MODEL_RE.match(a.routine):
-            raise ValueError("укажите --routine с именем модели (буквы, цифры, . : / - _)")
+            raise ValueError("Supply --routine with a model name (letters, digits, . : / - _).")
         target = Path(a.project).resolve(strict=True) / ".codex" / "harness-models.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         tmp = target.with_suffix(".tmp")
         tmp.write_text(json.dumps({"routine": a.routine}, ensure_ascii=False, indent=2) + "\n", encoding="utf8")
         tmp.replace(target)
-        print(f"routine model записана в {target}: {a.routine}", file=sys.stderr)
+        print(f"Routine model saved in {target}: {a.routine}", file=sys.stderr)
     print(json.dumps(detect_models(), ensure_ascii=False, indent=2))
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     cmds = parser.add_subparsers(dest="cmd", required=True)
-    run = cmds.add_parser("run", help="выполнить выданную карточку выбранным CLI")
+    run = cmds.add_parser("run", help="Run a dispatched card using the selected CLI.")
     run.add_argument("--cli", choices=tuple(BINARY), required=True)
     run.add_argument("--model", default=None)
     run.add_argument("--reply-language", help="user's requested output language for this card")
@@ -256,10 +256,10 @@ def main(argv=None):
     run.add_argument("--task", type=int, required=True)
     run.add_argument("--ticket", required=True)
     run.add_argument("--timeout", type=int, default=900)
-    models = cmds.add_parser("models", help="опросить установленные CLI о доступных моделях")
+    models = cmds.add_parser("models", help="Query installed CLIs for available models.")
     models.add_argument("--project", type=Path, default=Path.cwd())
-    models.add_argument("--apply", action="store_true", help="записать --routine в .codex/harness-models.json проекта")
-    models.add_argument("--routine", help="имя быстрой модели для --apply")
+    models.add_argument("--apply", action="store_true", help="Save --routine in the project's .codex/harness-models.json.")
+    models.add_argument("--routine", help="Routine model name to save with --apply.")
     args = parser.parse_args(argv)
     if args.cmd == "run":
         run_card(args)
@@ -272,7 +272,7 @@ if __name__ == "__main__":
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, OSError):
-        pass  # встраиваемые интерпретаторы без reconfigure
+        pass  # Embedded interpreters may lack reconfigure.
     try:
         main()
     except (OSError, ValueError, sqlite3.Error) as error:

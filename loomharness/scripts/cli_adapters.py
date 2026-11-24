@@ -1,21 +1,21 @@
-"""Адаптеры lifecycle-хуков разных CLI к каноническому формату LoomHarness.
+"""Map client lifecycle hooks to LoomHarness's canonical event and decision format.
 
-Канонический формат события совпадает с форматом Codex:
+The canonical event follows the Codex format:
   hook_event_name: SessionStart | UserPromptSubmit | PreToolUse | Stop
   cwd, session_id, prompt (UserPromptSubmit), tool_name/tool_input (PreToolUse),
   stop_hook_active, last_assistant_message (Stop).
 
-Отличия целевых CLI (проверено по документации, ноябрь 2026):
-- Codex: канонический формат как есть; блокировка —
+Client conventions documented in November 2026:
+- Codex passes canonical events and blocks tools through
   hookSpecificOutput.permissionDecision="deny".
-- Claude Code: те же имена событий; инструменты правки Edit/Write/MultiEdit/
-  NotebookEdit вместо apply_patch; permissionDecision="deny" поддержан.
-- Gemini CLI: события BeforeAgent/BeforeTool/AfterAgent, инструменты
-  write_file/replace; блокировка — {"decision": "deny", "reason": ...},
-  контекст — hookSpecificOutput.additionalContext.
-- opencode и DSH: события уже приходят в каноническом виде из JS-моста
-  (integrations/opencode, integrations/dsh); вывод — канонический JSON,
-  который мост разбирает сам.
+- Claude Code uses the same event names and Edit/Write/MultiEdit/NotebookEdit
+  tools, and supports permissionDecision="deny".
+- Gemini CLI uses BeforeAgent/BeforeTool/AfterAgent and write_file/replace.
+  It blocks with {"decision": "deny", "reason": ...} and supplies context in
+  hookSpecificOutput.additionalContext.
+- The OpenCode and DSH integrations supply canonical events from their bridges.
+  They receive canonical JSON decisions and translate these for their
+  respective clients.
 """
 
 GEMINI_EVENTS = {
@@ -25,28 +25,28 @@ GEMINI_EVENTS = {
     "AfterAgent": "Stop",
     "AfterTool": "PostToolUse",
 }
-# Antigravity (десктопная линейка Google, преемник Gemini CLI) использует
-# имена событий SessionStart/PreToolUse/Stop; PreInvocation/PostInvocation —
-# служебные, в каноническую модель не переводим.
+# Antigravity uses SessionStart, PreToolUse and Stop.
+# Its administrative PreInvocation and PostInvocation events have no
+# corresponding canonical event.
 ANTIGRAVITY_EVENTS = {
     "PreInvocation": "Other",
     "PostInvocation": "Other",
 }
-# Инструменты правки файлов, подпадающие под гейт доказательств, по CLI.
+# Client file-edit tools covered by evidence checks.
 EDIT_TOOLS = {
     "claude": {"Edit", "Write", "MultiEdit", "NotebookEdit"},
     "gemini": {"write_file", "replace"},
-    # Antigravity: формат инструментов унаследован от Gemini CLI (по докам);
-    # при расхождении имён добавьте сюда фактические.
+    # Antigravity currently follows Gemini's documented edit-tool names.
+    # Add observed names here if the integration diverges.
     "antigravity": {"write_file", "replace"},
 }
 EDIT_TOOL_CANONICAL = "edit_file"
 
 
 def detect(raw):
-    # События BeforeAgent/BeforeTool есть только у Gemini CLI. Форматы Codex и
-    # Claude Code совпадают, поэтому автоопределение отдаёт им codex-эмиcсию,
-    # которая для Claude корректна (те же hookSpecificOutput-поля).
+    # BeforeAgent and BeforeTool identify Gemini. Codex and Claude Code use
+    # compatible hookSpecificOutput fields, so autodetection can emit the
+    # Codex response format for either.
     if raw.get("hook_event_name") in GEMINI_EVENTS and raw.get("hook_event_name") != "SessionStart":
         return "gemini"
     return "codex"
@@ -76,7 +76,7 @@ def active_usage(raw, cli):
 
 
 def normalize(raw, cli):
-    """Привести событие CLI к каноническому формату. Вернуть (event, cli)."""
+    """Return a canonical event and the client that supplied it."""
     if cli == "auto":
         cli = detect(raw)
     event = dict(raw)
@@ -99,9 +99,9 @@ def normalize(raw, cli):
 
 
 def to_gemini(result):
-    """Перевести каноническое решение в формат вывода Gemini CLI.
+    """Translate a canonical decision into Gemini CLI's output format.
 
-    Тот же стиль вывода использует Antigravity (decision deny/ask)."""
+    Antigravity uses the same deny/ask response format."""
     specific = result.get("hookSpecificOutput")
     if not specific:
         return result
@@ -116,7 +116,7 @@ def to_gemini(result):
 
 
 def emit(result, cli):
-    """Вывести решение хука в формате выбранного CLI."""
+    """Emit the hook decision in the selected client's format."""
     if result is None:
         return
     if cli in ("gemini", "antigravity"):

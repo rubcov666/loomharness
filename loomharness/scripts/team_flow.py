@@ -11,7 +11,7 @@ import time
 
 try:
     import hk
-except ImportError:  # python -I исключает каталог скрипта из sys.path
+except ImportError:  # python -I excludes the script directory from sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import hk
 
@@ -28,8 +28,8 @@ SCHEMA = (
     """CREATE TABLE IF NOT EXISTS jobs (
        id INTEGER PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'offered',
        ticket TEXT NOT NULL, revision TEXT NOT NULL, target TEXT, action TEXT, authority TEXT, effects TEXT, note TEXT)""",
-    # Выпуск остаётся строго последовательным; ревью допускает пул из двух
-    # заданий, чтобы ревьюер работал, пока первое задание ждёт фоновый тест.
+    # Delivery stays sequential. Two review slots allow another job to run
+    # while the first awaits its background test.
     """CREATE UNIQUE INDEX IF NOT EXISTS one_active_delivery ON jobs(kind)
        WHERE state IN ('offered','active') AND kind='delivery'""",
     """CREATE TABLE IF NOT EXISTS job_tasks (
@@ -168,8 +168,8 @@ def organize(db, p, root, a):
         isinstance(v, str) and k.strip() == k and k and k not in STAGES.values() and v.strip()
         for k, v in domains.items()),
         "provide named domains and their responsibilities")
-    # Миграция: снять старый индекс серийного сервиса, выпуск сериализуется
-    # новым partial-индексом. Возможно только при пустой очереди заданий.
+    # Replace the old serial-service index with a partial delivery index.
+    # Migrate only while the queue is empty.
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='index' AND name='one_active_service'").fetchone():
         db.execute("DROP INDEX one_active_service")
     for sql in SCHEMA:
@@ -227,8 +227,8 @@ def review_candidates(db, project):
                         ).fetchone()[0]
     if active >= REVIEW_POOL:
         return []
-    # Карточки уже в активном задании не предлагаем повторно: пул пополняется
-    # только ожидающими карточками.
+    # Cards in active jobs are already assigned. Refill only from cards
+    # still waiting for review.
     items = "review_items" if has_review_items(db) else "job_tasks"
     pending = "AND x.decision IS NULL AND x.revision=s.revision" if items == "review_items" else ""
     rows = db.execute(f"""SELECT t.id,s.revision FROM tasks t JOIN submissions s ON s.task=t.id

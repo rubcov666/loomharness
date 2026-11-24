@@ -27,25 +27,25 @@ def run_script(script, *args, cwd, env, ok=True, input=None):
 
 def view_render_cap(root):
     big = root / "build.log"
-    big.write_text("строка вывода\n" * 150000, encoding="utf8")
+    big.write_text("output line Ω\n" * 150000, encoding="utf8")
     proc = run_script(SCRIPTS / "view.py", big, cwd=root, env=os.environ)
     out = proc.stdout.encode("utf8")
     assert len(out) < 560000, len(out)
     assert "REVIEW" in proc.stdout and "--find" in proc.stdout
-    assert big.read_text(encoding="utf8").startswith("строка вывода")
+    assert big.read_text(encoding="utf8").startswith("output line Ω")
     small = root / "small.log"
-    small.write_text("один\nдва\n", encoding="utf8")
-    assert run_script(SCRIPTS / "view.py", small, cwd=root, env=os.environ).stdout == "один\nдва\n"
+    small.write_text("one\ntwo\n", encoding="utf8")
+    assert run_script(SCRIPTS / "view.py", small, cwd=root, env=os.environ).stdout == "one\ntwo\n"
 
 
 def read_line_cap(root, env):
     script = SCRIPTS / "harness.py"
     run_script(script, "enable", cwd=root, env=env)
-    evidence = root / "проверка.log"
-    evidence.write_text("короткая строка\n" + "Д" * 5000 + "\nещё строка\n", encoding="utf8")
+    evidence = root / "evidence-Ω.log"
+    evidence.write_text("short line\n" + "Ω" * 5000 + "\nanother line\n", encoding="utf8")
     proc = run_script(script, "read", evidence.name, cwd=root, env=env)
-    assert " […]" in proc.stdout and "частично" in proc.stdout
-    assert "Д" * 440 not in proc.stdout and "короткая строка" in proc.stdout
+    assert " […]" in proc.stdout and "truncated" in proc.stdout
+    assert "Ω" * 440 not in proc.stdout and "short line" in proc.stdout
 
 
 def review_run_log(root):
@@ -127,7 +127,7 @@ def git_status_cache(root, env):
         assert harness["git_status"](root) == first and len(calls) == 1
         (root / "touch.txt").write_text("x", encoding="utf8")
         second = harness["git_status"](root)
-        assert len(calls) == 2 and second != first and "Изменённых и новых файлов: 1" in second
+        assert len(calls) == 2 and second != first and "Modified and new files: 1" in second
         assert harness["git_status"](root) == second and len(calls) == 2
 
 

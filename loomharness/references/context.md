@@ -1,8 +1,8 @@
-# Чтение, сравнение и выполнение действий
+# Reading, comparing and executing
 
-## Поиск инструмента
+## Finding a tool
 
-Для доступной операции с известной сигнатурой сразу используй её обычный интерфейс. Если нужно найти инструмент, используй поиск каталога в текущей среде. В Codex с `ALL_TOOLS` можно искать локально и передавать в чат только имена. Подставь слова для своей задачи. Если совпадений больше восьми, уточни действие или название приложения.
+Call a known tool directly. Otherwise search the current environment's catalog. In Codex, search `ALL_TOOLS` locally and return just the names. Substitute task-specific words. Narrow the action or app name if more than eight names match.
 
 ```js
 const words = ["list", "thread"];
@@ -12,7 +12,7 @@ if (!hits.length) hits = ALL_TOOLS.filter(tool => matches(tool.name + " " + tool
 text({total: hits.length, names: hits.slice(0, 8).map(tool => tool.name)});
 ```
 
-Для выбранной операции прочти полное описание с параметрами и ограничениями. Здесь показано конкретное имя для примера. При отсутствии совпадений проверь доступный каталог, имя приложения или справку его CLI.
+Read the selected tool's full description, parameters and limits. The example uses one specific tool name. If there is no match, check the catalog, application name or CLI help.
 
 ```js
 const name = "mcp__codex_app__list_threads";
@@ -20,42 +20,42 @@ const selected = ALL_TOOLS.find(tool => tool.name === name);
 text(selected ?? {missing: name});
 ```
 
-## Фрагменты и версии
+## Excerpts and versions
 
-Числовые наблюдения по окнам телеметрии вынесены в [telemetry.md](telemetry.md), команды `run`, `audit` и `map` — в [commands.md](commands.md).
+See [telemetry.md](telemetry.md) for time-window metrics and [commands.md](commands.md) for `run`, `audit` and `map`.
 
-Включённый хук показывает команду запуска `view.py` для вашей системы. Добавьте к ней путь файла и нужные аргументы.
+The enabled hook prints the `view.py` command for the current system. Append a file path and the options you need.
 
-| Что требуется | Аргументы после команды | Что вернётся |
+| Question | Arguments after the command | Result |
 |---|---|---|
-| Открыть место, указанное в карте кода или журнале | `service.py --start 120 --lines 8` | Строки исходника с номерами и указанием следующей страницы. В MCP у `harness_view` те же параметры `start` и `lines`. |
-| Найти условие или исключение в тексте, выгрузке или сохранённом логе | `minutes.txt --find "Перенос срока"` | Номера совпадений с двумя строками до и после. Для следующей страницы есть `--start`. Поиск учитывает регистр и читает UTF-8, а также UTF-16/32 с BOM. |
-| Узнать, сколько строк журнала содержат метку | `build.log --find "state=retry" --count` | Точное число совпавших строк с `--start` до конца файла. Несколько вхождений в одной строке считаются один раз. В MCP у `harness_find` задайте `count_only: true`. |
-| Запомнить версию уже проверенного файла любого формата | `slides.pptx --fingerprint` | SHA-256 всех байтов и размер. |
-| Повторно запросить те же поля большого отчёта | `report.json --fields id status --receipt new`, при повторе подставьте полученный код вместо `new` | Первое чтение возвращает представление с кодом. При совпадении пути, байтов, параметров и представления ответ занимает одну строку `UNCHANGED`. |
-| Проверить ту же версию перед повторным использованием вывода | `slides.pptx --expect-sha256 ХЕШ` | UNCHANGED и код 0 при совпадении, CHANGED и код 1 при изменении. Ошибка чтения или некорректный хеш дают код 2. |
+| Read a location identified in a code map or log | `service.py --start 120 --lines 8` | Numbered source lines and the next page. The MCP tool `harness_view` accepts `start` and `lines`. |
+| Find a condition or exception in a document, export or log | `minutes.txt --find "Deadline change"` | Matching line numbers with two lines of context on each side. Continue with `--start`. Search is case-sensitive and reads UTF-8 and UTF-16/32 with a BOM. |
+| Count log lines containing a marker | `build.log --find "state=retry" --count` | Exact count from `--start` to the end of the file. Multiple hits on one line count once. In MCP set `count_only: true` on `harness_find`. |
+| Record the version of a verified file of any format | `slides.pptx --fingerprint` | SHA-256 of the full file and its size in bytes. |
+| Request the same fields of a large report again | `report.json --fields id status --receipt new`, then replace `new` with the returned receipt | The first read includes the view and receipt. Matching path, bytes, options and representation return one `UNCHANGED` line. |
+| Check whether a previously verified result can be reused | `slides.pptx --expect-sha256 HASH` | UNCHANGED with exit 0 on a match, CHANGED with exit 1 on a change. Read errors and invalid hashes return 2. |
 
-Страница содержит до 100 строк (по умолчанию 20) в пределах 48 КиБ текста. У строк длиннее 440 знаков виден префикс и отметка `[…]`. Для поиска внутри такой строки используйте `--find`. Номера относятся к исходному файлу, включая JSON до преобразования в таблицу.
+A page contains up to 100 lines (default 20), bounded by 48 KiB of text. Lines over 440 characters show a prefix followed by `[…]`. Use `--find` to search inside a long line. Numbers refer to the original file, including JSON before tabular formatting.
 
-Для поиска без совпадений код равен 1. Если вид, формула или новое значение важны для ответа, откройте документ, лист или запись в соответствующем инструменте. Для облачного объекта используйте его ID и версию. Совпадение байтов локальной копии относится только к этой копии. Учитывайте и другие входы, параметры и дату источника, если они влияют на вывод.
+A search with no matches exits 1. When layout, a formula or a current value matters, open the original document, sheet or record in its native tool. Use the object ID and version for cloud data. A local hash covers only the local bytes. Include other inputs, settings and source dates that affect the result.
 
-Для внешнего действия используйте родной инструмент. Если ответ потерялся, проверьте историю или статус по тому же ID. Для локальной команды `context.py run --log` сохраняет полный вывод в новый файл, передаёт код завершения и отклоняет занятое имя до запуска. Для разбора сохранённого вывода используйте `view.py --find`. Запускайте интерактивные процессы в их обычном интерфейсе.
+Use the native tool for external actions. If the response is lost, check history or status using the same ID. For a local command, `context.py run --log` saves all output to a new file, propagates the exit code and rejects an existing filename before running. Read the saved output with `view.py --find`. Run interactive programs in their usual interface.
 
-**Повторное использование готовой работы.** Если результат полностью определяется известными локальными файлами и способом их обработки, после содержательной проверки один раз сохраните запись. Например, для экспорта документа со своим шаблоном выполните команду, подставив путь к установленному `context.py`.
+**Reuse a verified result.** If known local files and a processing method fully determine a result, save a receipt after checking the actual output. For example, for a document export using a custom template, substitute the path to the installed `context.py` in the following command.
 
 ```sh
-python context.py reuse --record export.receipt --input brief.txt --input layout.xml --result report.pdf --method "Экспорт v3, A4, ru" --save
+python context.py reuse --record export.receipt --input brief.txt --input layout.xml --result report.pdf --method "Export v3, A4, English" --save
 ```
 
-При следующем таком же запросе выполните ту же команду без `--save`. Код 0 и UNCHANGED означают, что все указанные входы, готовые файлы, пути и описание способа совпали. Можно взять уже проверенный результат. Код возврата, отличный от 0, требует новой проверки. Каждый вход и выход задаётся отдельным аргументом. При изменении результата обновите запись только после приёмки. Для сетевых данных, текущего времени, версий приложения, шрифтов или других зависимостей, которые влияют на результат, учтите их версию или проверьте результат заново. Запись не устанавливает факт отправки, списания или выполнения действия в сервисе.
+For the same request, repeat the command without `--save`. Exit 0 with UNCHANGED means all specified inputs, outputs, paths and the method match. Reuse the verified result. A nonzero exit requires checking again. Pass each input and output separately. Update the receipt after accepting a changed result. Account for versions of relevant network data, current dates, applications or fonts, or recheck the result. Confirm delivery, charges and other service actions with the service itself.
 
-**Автоматический выбор представления.** Для большого отчёта запустите `view.py` из той же папки скриптов, что и `context.py`. Например, `python -I -X utf8 "$view" builds.json --fields id attempt status conclusion` или `python3 -I -X utf8 "$view" manifest.txt --base "$verified_commit"`, где переменная пути указывает на `~/.agents/skills/loomharness/scripts/view.py`.
+**Select a compact representation.** Use `view.py` from the same scripts directory as `context.py`. For example, run `python -I -X utf8 "$view" builds.json --fields id attempt status conclusion` or `python3 -I -X utf8 "$view" manifest.txt --base "$verified_commit"`, where the path variable points to `~/.agents/skills/loomharness/scripts/view.py`.
 
-Скрипт сравнивает исходник, JSON без лишних пробелов, плоскую таблицу TOON, выборку полей и diff. Сравнение локальное, по байтам UTF-8 и числу слов и знаков. При близких размерах выводится исходник. Для выборки сохраняются порядок и число записей, все запрошенные и неизвестные поля, свободный текст и диагностика. Удаляются только однотипные служебные URL, хеши и даты известной формы. В заголовке перечислены исключённые поля. При отсутствии обязательного поля выбирается представление со всеми данными. Для поиска произвольных ошибок или причин, проверки URL и дат укажите необходимые поля или используйте полное содержимое. Для проверки отступов, кодировки или байтов читайте исходник напрямую.
+The script compares the source, compact JSON, a flat TOON table, selected fields and a diff using UTF-8 bytes and an estimate from words and punctuation. It favors the source for similar sizes. Field selection preserves row order and count, requested and unknown fields, free text and diagnostics. Only uniform metadata URLs, hashes and dates in recognized formats can be omitted. The header names omitted fields. Missing required fields select a complete representation. For arbitrary errors, exact URLs or dates, request the relevant fields or full content. Read the source directly for indentation, encoding or byte-level checks.
 
-Для diff нужен полный хеш ранее проверенного коммита и тот же путь в репозитории. При недоступной базе, новом пути или слишком большом патче доступны представления текущего файла. Строки с удалениями входят в diff. Некорректный JSON с расширением `.json`, повторяющиеся ключи и двоичные данные дают ошибку команды.
+A diff needs the full hash of a previously verified commit and the same repository path. If the base is unavailable, the file is new or the patch is too large, the command uses the current file. Diffs include deleted lines. Malformed `.json`, duplicate keys and binary input produce an error.
 
-Запускайте команды из рабочей папки проекта. На Windows задайте путь в PowerShell.
+Run commands in the project's working directory. On Windows set the path in PowerShell.
 
 ~~~powershell
 $ctx = Join-Path $env:USERPROFILE '.agents/skills/loomharness/scripts/context.py'
@@ -64,7 +64,7 @@ python -I -X utf8 $ctx audit
 python -I -X utf8 $ctx map discount --limit 6
 ~~~
 
-На macOS и Linux используйте Python 3.
+On macOS and Linux use Python 3.
 
 ~~~sh
 ctx="$HOME/.agents/skills/loomharness/scripts/context.py"
@@ -73,8 +73,8 @@ python3 -I -X utf8 "$ctx" audit
 python3 -I -X utf8 "$ctx" map discount --limit 6
 ~~~
 
-Поведение команд `run`, `audit` и `map` описано в [commands.md](commands.md).
+See [commands.md](commands.md) for `run`, `audit` and `map`.
 
-## Сводки PowerShell
+## PowerShell summaries
 
-`context.py run --log ФАЙЛ -- ПРОГРАММА АРГУМЕНТЫ` сохраняет исходные байты вывода. В экранной сводке сериализованные записи прогресса PowerShell сворачиваются, а соседний текст, ошибки, предупреждения и исходные номера строк сохраняются. Для неизвестного типа объекта или повреждённого XML остаётся исходный текст.
+`context.py run --log FILE -- PROGRAM ARGS` retains the original bytes. The summary collapses serialized PowerShell progress records and keeps adjacent text, errors, warnings and original line numbers. Unknown object types and malformed XML retain the original text.

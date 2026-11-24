@@ -18,7 +18,7 @@ import time
 
 try:
     import hk
-except ImportError:  # python -I исключает каталог скрипта из sys.path
+except ImportError:  # python -I excludes the script directory from sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import hk
 
@@ -30,8 +30,8 @@ models, queue = flow["models"], flow["queue"]
 initiative = hk.load("initiative")
 ON_BLOCKER = ("Continue available work. At turn end, tell the coordinator what blocks you, what you checked, "
               "and which answer you need. The coordinator asks the owner.")
-# Headless-драйверы выдачи карточек (scripts/team_driver.py). desktop —
-# исходный режим: операции create_thread/send_message_to_thread приложения Codex.
+# Headless card drivers are implemented in team_driver.py. Desktop dispatch
+# uses Codex create_thread/send_message_to_thread operations.
 DRIVERS = ("claude", "gemini", "antigravity", "opencode", "dsh")
 DRIVER_BINARY = {"claude": "claude", "gemini": "gemini",
                  "antigravity": "antigravity", "opencode": "opencode", "dsh": "dsh"}
@@ -142,10 +142,10 @@ def build_parser():
     cmds.add_parser("resume")
     handoff = cmds.add_parser("handoff", help="transfer coordination from this lead to a named chat")
     handoff.add_argument("thread", type=nonempty, help="successor's own thread ID")
-    driver = cmds.add_parser("driver", help="headless-драйвер выдачи карточек вместо Codex Desktop")
+    driver = cmds.add_parser("driver", help="Choose a headless driver for card dispatch.")
     driver.add_argument("action", choices=("show", "set"))
     driver.add_argument("name", nargs="?", choices=(*DRIVERS, "desktop"),
-                        help="CLI-драйвер из team_driver.py; desktop — исходный режим приложения Codex")
+                        help="CLI driver from team_driver.py, or desktop for Codex app dispatch.")
     for cmd in ("show", "dispatch", "bind", "claim", "submit", "accept", "revise", "release"):
         sub = cmds.add_parser(cmd)
         sub.add_argument("id", type=int)
@@ -196,8 +196,8 @@ def capacity(p, card, busy, scans):
 
 def plan(db, p, ready_only, *, with_offers=False):
     organized = flow["enabled"](db)
-    # exclusive: карточка без явных --resource захватила '*' и блокирует весь
-    # проект — видимый сигнал, чтобы координатор заметил и исправил нарезку.
+    # A card without an explicit resource claims '*'. Expose this to help
+    # the coordinator identify unnecessarily broad write scopes.
     exclusive = (", EXISTS(SELECT 1 FROM resources WHERE task=tasks.id AND name='*') AS exclusive"
                  if organized else "")
     cards = [dict(r) for r in db.execute(
@@ -350,7 +350,7 @@ def dispatch(db, p, t, a, root):
             "the user impact, remaining gap, and options. The owner decides on project changes.")
     if drv:
         binary = DRIVER_BINARY.get(drv, drv)
-        require(shutil.which(binary), f"CLI '{binary}' не найден в PATH. Установите его или верните desktop: "
+        require(shutil.which(binary), f"CLI '{binary}' not found on PATH. Install it or restore desktop mode: "
                                       f"team.py driver set claude|gemini|antigravity|opencode|dsh")
         helper = Path(__file__).resolve().with_name("team_driver.py")
         result = {"operation": "run_command",
@@ -463,7 +463,7 @@ def operate(db, root, a, actor):
     if a.cmd == "driver":
         db.execute("CREATE TABLE IF NOT EXISTS driver(id INTEGER PRIMARY KEY CHECK(id=1), name TEXT NOT NULL)")
         if a.action == "set":
-            require(a.name, "укажите имя драйвера: claude, gemini, antigravity, opencode, dsh или desktop")
+            require(a.name, "Choose a driver: claude, gemini, antigravity, opencode, dsh or desktop.")
             if a.name == "desktop":
                 db.execute("DELETE FROM driver")
             else:
@@ -563,7 +563,7 @@ def intake(root, path, actor):
                 return dict(result, actor="other", threadId=actor, next="for coordination, ask the current lead to run handoff")
     read = hk.load("plan")
     docs = (*read["DEFAULT_DOCS"], "BRIEF.md", "README.md", "README.txt", "README", "Описание.md")
-    notes = read["for_prompt"](root, "что дальше", default_docs=docs, budget=2000)
+    notes = read["for_prompt"](root, "what is next", default_docs=docs, budget=2000)
     return {"stage": "new", "project_notes": notes, **({"git": policy} if policy else {})}
 
 
@@ -676,9 +676,9 @@ def execute_request(request, parser):
 
 
 def serve(a):
-    # Долгоживущий процесс-доска: 127.0.0.1, порт в serve.port. Один запрос на
-    # соединение: JSON-строка с argv/actor/project → JSON-ответ со stdout.
-    # Снимает налог ~140 мс на каждый вызов доски в активном проекте.
+    # Persistent board on loopback. serve.port records the endpoint.
+    # Each connection accepts a JSON line with argv/actor/project and returns
+    # JSON stdout, amortizing process startup in active sessions.
     port_file = harness_ns["data_directory"]() / "serve.port"
     parser = build_parser()
 

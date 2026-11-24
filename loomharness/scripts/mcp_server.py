@@ -125,10 +125,10 @@ def resolve_path(raw, root):
         base = Path(root).resolve()
         resolved = path.resolve()
         if not resolved.is_relative_to(base):
-            raise ValueError(f"Путь вне разрешённого корня {base}: {path}")
+            raise ValueError(f"Path outside the allowed root {base}: {path}")
         path = resolved
     if not path.is_file():
-        raise ValueError(f"Нужен существующий файл: {path}")
+        raise ValueError(f"Expected an existing file: {path}")
     return path
 
 
@@ -159,7 +159,7 @@ def call_tool(name, arguments):
             status = context.code_map(cwd, args["query"], limit)
         text = buffer.getvalue()
         if status:
-            text = (text or "") + f"(совпадений не найдено, код выхода {status})"
+            text = (text or "") + f"(no matches, exit code {status})"
     elif name == "harness_metrics":
         if ("data" in args) == ("path" in args) or ("root" in args and "path" not in args):
             raise ValueError("Supply exactly one of data or path. Use root with path.")
@@ -167,12 +167,12 @@ def call_tool(name, arguments):
         result = metrics.summarize(data, args.get("threshold", 0), summary=args.get("summary", False))
         text = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
     else:
-        raise ValueError(f"Неизвестный инструмент: {name}")
+        raise ValueError(f"Unknown tool: {name}")
     return [{"type": "text", "text": text}]
 
 
 def handle(message):
-    # Возвращает {"result": ...} или {"error": ...}; main() поднимает их наверх ответа.
+    # main() forwards the result or error in the JSON-RPC response.
     method = message.get("method")
     params = message.get("params", {})
     if not isinstance(params, dict):

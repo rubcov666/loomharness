@@ -17,11 +17,11 @@ IDENT = re.compile(r"[A-Za-z_][A-Za-z_0-9]*\Z")
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z", re.ASCII)
 STAMP = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)\Z", re.ASCII)
 WORDS = re.compile(r"\w+|[^\w\s]")
-# Максимум одного вывода в чат. 48 КБ — это ~12k токенов: безопасный потолок
-# для одного ответа инструмента. Точный фрагмент добывается через --find.
+# Limit each chat response to 48 KiB (roughly 12k tokens for typical text).
+# Use --find for an exact excerpt.
 RENDER_CAP = 48 * 1024
-# Входной файл больше этого не читаем целиком в память: вывод всё равно
-# упрётся в RENDER_CAP, а точный фрагмент добывается через --find.
+# Avoid fully loading large inputs when the rendered view would hit the cap.
+# Literal search can still locate a precise fragment.
 MAX_INPUT_BYTES = 256 * 1024 * 1024
 
 
@@ -44,7 +44,7 @@ def choose(full, candidates):
 def unique_object(pairs):
     result = dict(pairs)
     if len(result) != len(pairs):
-        raise ValueError("Повторяющийся ключ JSON. Проверьте исходный файл.")
+        raise ValueError("Duplicate JSON key. Check the source file.")
     return result
 
 
@@ -59,7 +59,7 @@ def integer(text):
 
 
 def invalid_constant(value):
-    raise ValueError(f"Недопустимое значение JSON: {value}")
+    raise ValueError(f"Invalid JSON value: {value}")
 
 
 def portable(value):
@@ -165,7 +165,7 @@ def json_views(text, fields):
 
 def git_view(path, data, commit):
     if not SHA.fullmatch(commit):
-        raise ValueError("--base требует полный хеш ранее проверенного коммита Git.")
+        raise ValueError("--base requires the full hash of a previously verified Git commit.")
     if path.is_symlink():
         return None
 
@@ -225,18 +225,18 @@ def git_view(path, data, commit):
 def render(path, fields=(), base=None, *, receipt=None, start=None, lines=None):
     if start is not None or lines is not None:
         if fields or base is not None or receipt is not None:
-            raise ValueError("Диапазон строк относится к исходнику. Выберите один способ чтения.")
+            raise ValueError("Line ranges refer to the source. Choose one read mode.")
         return source_page(path, 1 if start is None else start, 20 if lines is None else lines)
     if receipt is not None:
         if not isinstance(receipt, str) or not re.fullmatch(r"new|[0-9a-f]{64}", receipt):
             raise ValueError("Expected new or a complete view receipt.")
         before = signature(path)
     if path.stat().st_size > MAX_INPUT_BYTES:
-        raise ValueError(f"Файл больше {MAX_INPUT_BYTES // (1024 * 1024)} МБ. Откройте фрагмент через --find.")
+        raise ValueError(f"File exceeds {MAX_INPUT_BYTES // (1024 * 1024)} MiB. Use --find for an excerpt.")
     raw = path.read_bytes()
     text = raw.decode("utf8")
     if "\0" in text:
-        raise ValueError("Нужен текстовый файл UTF-8.")
+        raise ValueError("Expected a UTF-8 text file.")
     content = text.removeprefix("\ufeff")
     candidates = []
     if path.suffix.lower() == ".json" or content.lstrip().startswith(("[", "{")):
@@ -253,8 +253,8 @@ def render(path, fields=(), base=None, *, receipt=None, start=None, lines=None):
     result = choose(text, candidates) if candidates else text
     encoded = raw if result is text else result.encode("utf8")
     if len(encoded) > RENDER_CAP:
-        # Обрезаем по целым строкам: середина строки бесполезна для чтения,
-        # а точный фрагмент и так добывается через --find.
+        # Truncate at line boundaries so the remaining text stays readable.
+        # Exact fragments remain available with --find.
         lines = result.splitlines(keepends=True)
         kept, used = [], 0
         for line in lines:
@@ -265,16 +265,16 @@ def render(path, fields=(), base=None, *, receipt=None, start=None, lines=None):
             used += size
         omitted = len(lines) - len(kept)
         head = "".join(kept).rstrip("\r\n")
-        result = (head + f"\n[… показаны первые {len(kept)} из {len(lines)} строк "
-                  f"({used} байт из {len(encoded)}) … "
-                  f"REVIEW: пропущено строк: {omitted}. Для точного фрагмента используйте --find]")
+        result = (head + f"\n[… showing the first {len(kept)} of {len(lines)} lines "
+                  f"({used} of {len(encoded)} bytes) … "
+                  f"REVIEW: omitted lines: {omitted}. Use --find for an exact excerpt]")
     if receipt is not None:
         # Bind both the entire source (including cropped lines) and the exact representation.
         identity = ["view-v1", str(path.resolve()), list(fields), base, hashlib.sha256(raw).hexdigest(),
                     hashlib.sha256(result.encode("utf8")).hexdigest()]
         digest = hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode("ascii")).hexdigest()
         if signature(path) != before:
-            raise ValueError("Файл изменился во время чтения.")
+            raise ValueError("File changed during the read.")
         return "UNCHANGED\n" if receipt == digest else f"receipt={digest}\n{result}"
     return result
 
@@ -297,41 +297,41 @@ def source_encoding(path):
 
 def source_page(path, start, lines):
     if type(start) is not int or start < 1 or type(lines) is not int or not 1 <= lines <= 100:
-        raise ValueError("Начальная строка должна быть положительной, число строк от 1 до 100.")
+        raise ValueError("Use a positive start line and a line count from 1 to 100.")
     parts = []
     used = 0
     # Read even a single minified line in bounded chunks. Stop after this page.
     with path.open(encoding=source_encoding(path)) as stream:
         for number, prefix in enumerate(iter(lambda: stream.readline(441), ""), 1):
             if number >= start + lines:
-                parts.append(f"Продолжение: --start {number}.")
+                parts.append(f"Continue: --start {number}.")
                 break
             if "\0" in prefix:
-                raise ValueError("Нужен текстовый файл.")
+                raise ValueError("Expected a text file.")
             clipped = len(prefix) == 441 and not prefix.endswith("\n")
             if number >= start:
                 line = prefix[:440].rstrip("\n") + (" […]" if clipped else "")
                 row = f"{number} | {line}"
                 size = len(row.encode("utf8")) + 1
                 if used + size > RENDER_CAP:
-                    parts.append(f"Продолжение: --start {number}.")
+                    parts.append(f"Continue: --start {number}.")
                     break
                 parts.append(row)
                 used += size
             if clipped:
                 for chunk in iter(lambda: stream.readline(64 * 1024), ""):
                     if "\0" in chunk:
-                        raise ValueError("Нужен текстовый файл.")
+                        raise ValueError("Expected a text file.")
                     if chunk.endswith("\n"):
                         break
-    return "\n".join(parts or [f"Начиная со строки {start} данных нет."]) + "\n"
+    return "\n".join(parts or [f"No data from line {start}."]) + "\n"
 
 
 def excerpts(path, term, start, limit, *, count_only=False):
     if not isinstance(term, str) or not term.strip() or "\n" in term or "\r" in term:
-        raise ValueError("Укажите фрагмент одной строки.")
+        raise ValueError("Supply a single-line search string.")
     if type(start) is not int or start < 1 or type(limit) is not int or not 1 <= limit <= 20:
-        raise ValueError("Номер строки должен быть положительным, лимит совпадений от 1 до 20.")
+        raise ValueError("Use a positive start line and a match limit from 1 to 20.")
     if type(count_only) is not bool:
         raise ValueError("count_only must be a boolean.")
     previous = deque(maxlen=2)
@@ -341,7 +341,7 @@ def excerpts(path, term, start, limit, *, count_only=False):
     with path.open(encoding=source_encoding(path)) as stream:
         for number, raw in enumerate(stream, 1):
             if "\x00" in raw:
-                raise ValueError("Для этого файла откройте документ в его приложении.")
+                raise ValueError("Open this document in its native application.")
             if number < start - 2:
                 continue
             if count_only:
@@ -368,14 +368,14 @@ def excerpts(path, term, start, limit, *, count_only=False):
             if number <= tail_until:
                 shown[number] = item
             previous.append((number, item))
-    parts = [f"Совпадающих строк с {start}: {hits}."]
+    parts = [f"Matching lines from {start}: {hits}."]
     for n, (line, shortened) in sorted(shown.items()):
         parts.append(f"{n} | {line}")
         clipped |= shortened
     if next_start:
-        parts.append(f"Продолжение: --start {next_start}.")
+        parts.append(f"Continue: --start {next_start}.")
     if clipped:
-        parts.append("Длинные строки показаны частично.")
+        parts.append("Long lines are truncated.")
     return "\n".join(parts) + "\n", 0 if hits else 1
 
 
@@ -388,30 +388,30 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("file", type=Path)
     parser.add_argument(
-        "--fields", nargs="+", default=[], help="Все поля, нужные для конкретного вопроса."
+        "--fields", nargs="+", default=[], help="Fields needed for the question."
     )
-    parser.add_argument("--base", help="Полный хеш уже проверенного коммита с этим файлом.")
+    parser.add_argument("--base", help="Full hash of a verified commit containing this file.")
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--fingerprint", action="store_true", help="Показать SHA-256 байтов файла любого формата.")
-    mode.add_argument("--expect-sha256", metavar="SHA256", help="Сверить байты с ранее проверенной версией.")
-    mode.add_argument("--find", metavar="TEXT", help="Найти точный текст и показать по две соседние строки.")
-    mode.add_argument("--receipt", help="new при первом чтении или код ранее полученного представления.")
-    mode.add_argument("--lines", type=int, help="Показать 1–100 строк исходника с номерами.")
-    parser.add_argument("--start", type=int, help="Первая строка поиска или страницы (по умолчанию 20 строк на страницу).")
-    parser.add_argument("--limit", type=int, help="Число совпадений на страницу, по умолчанию 5.")
-    parser.add_argument("--count", action="store_true", help="Показать только число строк с искомым текстом.")
+    mode.add_argument("--fingerprint", action="store_true", help="Show the SHA-256 of any file's bytes.")
+    mode.add_argument("--expect-sha256", metavar="SHA256", help="Compare bytes with a previously verified version.")
+    mode.add_argument("--find", metavar="TEXT", help="Find literal text with two surrounding lines on each side.")
+    mode.add_argument("--receipt", help="Use new on the first read or supply the previous view receipt.")
+    mode.add_argument("--lines", type=int, help="Show 1 to 100 numbered source lines.")
+    parser.add_argument("--start", type=int, help="First line of the search or page (default page size 20).")
+    parser.add_argument("--limit", type=int, help="Matches per page (default 5).")
+    parser.add_argument("--count", action="store_true", help="Return only the number of matching lines.")
     args = parser.parse_args()
     if not args.file.is_file():
-        parser.error("Нужен существующий обычный файл.")
+        parser.error("Expected an existing regular file.")
     compare = args.expect_sha256 is not None
     if compare and not re.fullmatch(r"[A-Fa-f0-9]{64}", args.expect_sha256):
-        parser.error("Ожидался полный SHA-256.")
+        parser.error("Expected a full SHA-256 hash.")
     if (args.fingerprint or compare or args.find is not None) and (args.fields or args.base):
-        parser.error("Выберите один способ чтения файла.")
+        parser.error("Choose one file read mode.")
     if args.find is None and (args.limit is not None or args.count):
-        parser.error("--limit и --count применяются при поиске через --find.")
+        parser.error("--limit and --count require --find.")
     if args.start is not None and (args.fingerprint or compare):
-        parser.error("--start применяется при чтении строк.")
+        parser.error("--start applies to line-based reads.")
     try:
         before = signature(args.file)
         status = 0
@@ -428,12 +428,12 @@ def main():
             result = render(args.file.absolute(), args.fields, args.base, receipt=args.receipt,
                             start=args.start, lines=args.lines)
         if signature(args.file) != before:
-            raise ValueError("Файл изменился во время чтения.")
+            raise ValueError("File changed during the read.")
         sys.stdout.buffer.write(result.encode("utf8"))
         return status
     except (OSError, ValueError, RecursionError) as error:
         parser.exit(2 if (args.find is not None or compare or args.fingerprint) else 1,
-                    f"Не удалось прочитать файл: {error}\n")
+                    f"Could not read file: {error}\n")
 
 
 if __name__ == "__main__":

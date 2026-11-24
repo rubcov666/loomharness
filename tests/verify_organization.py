@@ -262,7 +262,7 @@ def legacy_reviews(root):
 
 if __name__ == "__main__":
     with TemporaryDirectory() as temp:
-        scenario(Path(temp) / "Без Git")
+        scenario(Path(temp) / "Without Git")
         existing_git(Path(temp) / "nested")
         grouped_reviews(Path(temp) / "eleven roles")
     with TemporaryDirectory() as temp:

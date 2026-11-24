@@ -12,9 +12,9 @@ from statistics import median
 import time
 
 
-# Относительная цена токенов для сводной оценки экономии: кэшированный вход
-# примерно в 10 раз дешевле свежего, выход дороже входа. Значения условные,
-# для сравнения режимов между собой на одном наборе задач.
+# Illustrative weights for comparing the same tasks: cached input is cheaper
+# than fresh input and output is more expensive. These weights are for local
+# comparisons, not provider billing.
 PRICE_INPUT = 1.0
 PRICE_CACHED = 0.1
 PRICE_OUTPUT = 4.0
@@ -215,8 +215,8 @@ _TURNS_CACHE_LIMIT = 64
 
 def read_turns(path, thread, *, trial=False):
     # Usage reports re-read the same rollout logs on every call; reuse the parsed
-    # turns while the file path, size and mtime stay unchanged. LRU вместо
-    # полного сброса: большая доска не обнуляет кэш остальных потоков.
+    # turns while the file path, size and mtime stay unchanged. LRU eviction
+    # keeps other threads warm on large boards.
     stamp = _log_stamp(path)
     cache_key = (str(path), stamp, thread, trial)
     if cache_key in _TURNS_CACHE:

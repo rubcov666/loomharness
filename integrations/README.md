@@ -1,36 +1,36 @@
-# Интеграции LoomHarness
+# LoomHarness integrations
 
-Переносимое ядро (компактный ввод-вывод, доска команды, MCP-сервер) работает в любом MCP-способном агенте. Хуки с гейтом доказательств подключены к терминальным CLI напрямую, к остальным — через мосты в этом каталоге.
+Use compact reads, local metrics and context budgeting in MCP-capable agents. Lifecycle hooks register directly with supported CLIs or use a bridge. The board is available separately through the local CLI.
 
-| Среда | Механизм | Гейт правок | Подсказки в промпт | Статус |
+| Client | Setup | Edit checks | Prompt hints | Coverage |
 |---|---|---|---|---|
-| Codex CLI | `install.py --cli codex` | полный | полный | проверено тестами |
-| Codex Desktop (ChatGPT app) | общий `~/.codex` с CLI | полный | полный | подтверждено докой OpenAI |
-| Claude Code | `install.py --cli claude` | полный (Edit/Write/MultiEdit) | полный | проверено симуляцией событий |
-| Claude Desktop (вкладка Code) | общий `~/.claude` с CLI | полный | полный | подтверждено докой Anthropic |
-| Gemini CLI | `install.py --cli gemini` | полный (write_file/replace) | полный | проверено симуляцией событий |
-| Antigravity (десктоп Google) | `install.py --cli antigravity` | полный | только старт/стоп | по докам Google, нужна живая проверка |
-| OpenCode | `integrations/opencode` | через мост | через мост | доставка подсказки проверена в OpenCode 1.18.0 на macOS, контракты хуков 1.18 и 2.4 проверяются в CI |
-| DeepSeek Harness | навык `SKILL.md` + `integrations/dsh` (MCP-бандл) | нет локальных хуков | навык работает | MCP-бандл: конфигурация |
-| Чат Claude Desktop | `claude_desktop_config.json` (MCP) | нет | нет | MCP-сервер, конфиг вручную |
-| Чат Gemini Desktop | remote MCP по HTTPS | нет | нет | нужна HTTP-обёртка над stdio |
-| Прочие MCP-агенты | `mcp_server.py` | нет | нет | инструменты чтения и карты кода |
+| Codex CLI | `install.py --cli codex` | Full | Full | Installer and hooks exercised in CI |
+| Codex Desktop | Shares `~/.codex` with the CLI | Full | Full | Documented by OpenAI |
+| Claude Code | `install.py --cli claude` | Full for Edit, Write and MultiEdit | Full | Simulated lifecycle events |
+| Claude Desktop Code tab | Shares `~/.claude` with the CLI | Full | Full | Documented by Anthropic |
+| Gemini CLI | `install.py --cli gemini` | Full for write_file and replace | Full | Simulated lifecycle events |
+| Antigravity desktop | `install.py --cli antigravity` | Full mapping | Startup and stop | Based on vendor documentation, live verification pending |
+| OpenCode | `integrations/opencode` | Bridge | Bridge | Prompt delivery observed on OpenCode 1.18.0 for macOS. CI covers 1.18 and 2.4 contracts. |
+| DeepSeek Harness | `SKILL.md` and `integrations/dsh` MCP bundle | No local hook | Skill | MCP bundle configuration |
+| Claude Desktop chat | `claude_desktop_config.json` (MCP) | — | — | Manual MCP configuration |
+| Gemini Desktop chat | Remote MCP over HTTPS | — | — | Requires an HTTP-to-stdio wrapper |
+| Other MCP agents | `mcp_server.py` | — | — | File reads, search, maps, metrics and context budget |
 
-Десктопные Codex и Claude исполняют те же локальные command-хуки, что и их CLI (общие каталоги настроек) — отдельная установка не нужна. Источники: [Codex Hooks](https://developers.openai.com/codex/hooks) (раздел про desktop app), [Claude Code Hooks](https://code.claude.com/docs/en/hooks) («the same hook events wherever it runs… the Desktop app»), [Antigravity Hooks](https://antigravity.google/docs/hooks).
+Codex Desktop and Claude Desktop Code use the same local command-hook settings as their CLIs. One installation serves both. [Codex hooks](https://developers.openai.com/codex/hooks) · [Claude Code hooks](https://code.claude.com/docs/en/hooks) · [Antigravity hooks](https://antigravity.google/docs/hooks)
 
-## Длинные сессии
+## Long sessions
 
-Для настройки штатного сжатия в Codex, Claude Code и Gemini CLI, получения бюджета через MCP и сборки нового ввода в собственном клиенте см. [раннее сжатие истории](../loomharness/references/history.md). Для адаптера достаточно знать окно выбранной модели и размер активного ввода.
+For native compaction in Codex, Claude Code or Gemini CLI, an MCP budget decision or rebuilding history in a custom client, see [history compaction](../loomharness/references/history.md). The basic adapter needs the active model's window and input size.
 
 ## OpenCode
 
-Установите ядро через `install.py`. В конфигурации проекта укажите каталог моста из этого репозитория. В OpenCode 1.18 используйте `"plugin": ["file:///absolute/path/to/integrations/opencode"]`, в OpenCode 2.x — `"plugins": [{"package": "./integrations/opencode"}]` с путём относительно конфигурации. [Переход между версиями OpenCode](https://opencode.ai/docs/build/plugins/migrate-v1)
+Install the core with `install.py`. Select this repository's bridge directory in the project configuration. OpenCode 1.18 uses `"plugin": ["file:///absolute/path/to/integrations/opencode"]`. OpenCode 2.x uses `"plugins": [{"package": "./integrations/opencode"}]` with a path relative to the configuration. [OpenCode migration guide](https://opencode.ai/docs/build/plugins/migrate-v1)
 
-Отправьте в тестовом проекте `LoomHarness on`. Попытка отредактировать `state.json` до чтения доказательства должна вернуть причину отказа. Для чтения выполните `harness.py read <путь-к-логу>` в каталоге проекта, передав через переменную окружения `CODEX_THREAD_ID` идентификатор этой сессии OpenCode. Затем повторите правку в той же сессии.
+Send `LoomHarness on` in the project. To diagnose the edit hook, an edit to `state.json` before an evidence read should give the reason it was blocked. Run `harness.py read <log-path>` in the project with `CODEX_THREAD_ID` set to the current OpenCode session ID, then retry the edit in that session.
 
-Мост по умолчанию вызывает `~/.agents/skills/loomharness/scripts/harness.py`. Для другой установки задайте `LOOMHARNESS_HELPER`, а для выбора интерпретатора — `LOOMHARNESS_PYTHON`.
+By default the bridge calls `~/.agents/skills/loomharness/scripts/harness.py`. Set `LOOMHARNESS_HELPER` for another location and `LOOMHARNESS_PYTHON` for another interpreter.
 
 ## DeepSeek Harness
 
-- Скопируйте каталог `loomharness/` с файлом `SKILL.md` в каталог навыков пресета.
-- Бандл `integrations/dsh` подключает пять инструментов из `mcp_server.py` для чтения файлов, поиска, карты кода, метрик и бюджета контекста. Замените `<HELPER>` в `cordis.patch.yml` на абсолютный путь к `scripts/mcp_server.py`, затем установите бандл через Plugins → Add plugin.
+- Copy `loomharness/` with `SKILL.md` into the preset's skill directory.
+- The `integrations/dsh` bundle exposes the five file-view, search, code-map, metrics and context-budget tools. Replace `<HELPER>` in `cordis.patch.yml` with the absolute path to `scripts/mcp_server.py`, then install through Plugins → Add plugin.

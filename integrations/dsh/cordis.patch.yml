@@ -1,8 +1,8 @@
-# Конфигурационный бандл DSH: подключает MCP-сервер LoomHarness к агентам DeepSeek Harness.
-# Установка: Plugins → Add plugin → этот каталог (либо plugin_manager install_bundle).
-# Перед установкой замените <HELPER> на абсолютный путь к scripts/mcp_server.py
-# установленного навыка (~/.agents/skills/loomharness/scripts/mcp_server.py).
-# Схема полей: @deepseek-ai/dsh-mcp-client (serverName, transport, command, args).
+# Connect the LoomHarness stdio MCP server to DeepSeek Harness agents.
+# Install this directory with Plugins → Add plugin or plugin_manager install_bundle.
+# First replace <HELPER> with the absolute path to the installed scripts/mcp_server.py.
+# The default installation is ~/.agents/skills/loomharness/scripts/mcp_server.py.
+# @deepseek-ai/dsh-mcp-client uses serverName, transport, command and args.
 - type: service
   name: mcp-loomharness
   package: '@deepseek-ai/dsh-mcp-client'

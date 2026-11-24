@@ -38,7 +38,7 @@ class Views(unittest.TestCase):
         )
 
     def test_file_identity_and_text_context_without_git(self):
-        book = self.root / "Бюджет.xlsx"
+        book = self.root / "Budget résumé.xlsx"
         book.write_bytes(b"PK\x03\x04\x00\xff")
         def invoke(file, *args):
             return subprocess.run([sys.executable, "-I", "-X", "utf8", SCRIPT, file, *args],
@@ -55,14 +55,14 @@ class Views(unittest.TestCase):
         self.assertEqual(invoke(book, "--expect-sha256", "bad").returncode, 2)
         self.assertEqual(invoke(book, "--find", "PK").returncode, 2)
         notes = self.root / "minutes.txt"
-        notes.write_text("Minutes\nСрок: пятница\nИсключение: выходной\nПодпись\n\nСрок: уточняется\n",
+        notes.write_text("Minutes\nDeadline: Friday\nException: holiday\nSign-off\n\nDeadline: pending\n",
                          encoding="utf-16")
-        first = invoke(notes, "--find", "Срок", "--limit", "1")
+        first = invoke(notes, "--find", "Deadline", "--limit", "1")
         self.assertEqual(first.returncode, 0)
-        self.assertIn("3 | Исключение: выходной", first.stdout)
+        self.assertIn("3 | Exception: holiday", first.stdout)
         self.assertIn("--start 6", first.stdout)
-        self.assertIn("6 | Срок: уточняется", invoke(notes, "--find", "Срок", "--start", "6").stdout)
-        self.assertEqual(invoke(notes, "--find", "Отменено").returncode, 1)
+        self.assertIn("6 | Deadline: pending", invoke(notes, "--find", "Deadline", "--start", "6").stdout)
+        self.assertEqual(invoke(notes, "--find", "Cancelled").returncode, 1)
 
     def test_repeat_view_receipt_tracks_source_and_projection(self):
         self.store([{"id": n, "message": f"line {n}"} for n in range(150)])
@@ -90,16 +90,16 @@ class Views(unittest.TestCase):
         self.assertEqual(json.loads(result.stdout)["result"]["content"][0]["text"], "UNCHANGED\n")
 
     def test_count_matching_lines_via_cli_and_mcp(self):
-        self.file = self.root / "запуск.log"
-        self.file.write_text("Сбой\nтихо\nСбой Сбой\nсбой\nСбой\nхвост\n", encoding="utf-32")
-        expected = "Совпадающих строк с 2: 2.\n"
-        flags = ("--find", "Сбой", "--start", "2", "--limit", "1")
+        self.file = self.root / "run-Ω.log"
+        self.file.write_text("Failure\nquiet\nFailure Failure\nfailure\nFailure\ntail\n", encoding="utf-32")
+        expected = "Matching lines from 2: 2.\n"
+        flags = ("--find", "Failure", "--start", "2", "--limit", "1")
         self.assertEqual(self.view(*flags, "--count").decode(), expected)
         page = self.view(*flags).decode()
         self.assertTrue(page.startswith(expected))
-        self.assertIn("5 | Сбой\n", page)
+        self.assertIn("5 | Failure\n", page)
         self.assertIn("--start 5", page)
-        args = {"path": str(self.file), "text": "Сбой", "start": 2, "limit": 1, "count_only": True}
+        args = {"path": str(self.file), "text": "Failure", "start": 2, "limit": 1, "count_only": True}
         def find(**overrides):
             call = {"id": 1, "method": "tools/call", "params": {
                 "name": "harness_find", "arguments": {**args, **overrides}}}
@@ -111,8 +111,8 @@ class Views(unittest.TestCase):
         self.assertTrue(find(start=0)["isError"])
         self.assertTrue(find(count_only="false")["isError"])
         empty = subprocess.run([sys.executable, "-I", "-X", "utf8", SCRIPT, self.file,
-                                "--find", "Сбой", "--start", "6", "--count"], capture_output=True)
-        self.assertEqual((empty.returncode, empty.stdout.decode()), (1, "Совпадающих строк с 6: 0.\n"))
+                                "--find", "Failure", "--start", "6", "--count"], capture_output=True)
+        self.assertEqual((empty.returncode, empty.stdout.decode()), (1, "Matching lines from 6: 0.\n"))
         self.view("--count", success=False)
         self.file.write_bytes(b"match\n" * 5000 + b"\0")
         self.view("--find", "match", "--count", success=False)
@@ -120,11 +120,11 @@ class Views(unittest.TestCase):
 
     def test_numbered_source_pages_via_cli_and_mcp(self):
         self.file = self.root / "original.json"
-        self.file.write_bytes(("first\r\n" + "я" * 70000 + "\r\nlast\r\n").encode("utf-16"))
+        self.file.write_bytes(("first\r\n" + "é" * 70000 + "\r\nlast\r\n").encode("utf-16"))
         page = self.view("--start", "2", "--lines", "1").decode()
-        self.assertEqual(page, "2 | " + "я" * 440 + " […]\nПродолжение: --start 3.\n")
+        self.assertEqual(page, "2 | " + "é" * 440 + " […]\nContinue: --start 3.\n")
         self.assertEqual(self.view("--start", "3").decode(), "3 | last\n")
-        self.assertIn("данных нет", self.view("--start", "4").decode())
+        self.assertIn("No data", self.view("--start", "4").decode())
         for flags in (("--lines", "0"), ("--lines", "101"), ("--start", "0"),
                       ("--lines", "2", "--fields", "id"), ("--start", "2", "--receipt", "new")):
             self.view(*flags, success=False)
@@ -141,7 +141,7 @@ class Views(unittest.TestCase):
         output = self.view("--lines", "100")
         self.assertLess(len(output), 48 * 1024 + 100)
         rows = output.decode().splitlines()
-        self.assertEqual(rows[-1], f"Продолжение: --start {len(rows)}.")
+        self.assertEqual(rows[-1], f"Continue: --start {len(rows)}.")
         self.assertTrue(self.view("--start", str(len(rows)), "--lines", "1").decode().startswith(
             f"{len(rows)} | 📖"))
         self.file.write_bytes(b"\x00binary\n")
@@ -151,7 +151,7 @@ class Views(unittest.TestCase):
             stream.truncate(257 * 1024 * 1024)
         proc = subprocess.run([sys.executable, "-I", "-X", "utf8", SCRIPT, self.file, "--lines", "1"],
                               capture_output=True, check=True)
-        self.assertEqual(proc.stdout.decode(), "1 | first\nПродолжение: --start 2.\n")
+        self.assertEqual(proc.stdout.decode(), "1 | first\nContinue: --start 2.\n")
 
     def test_projection_keeps_failures_and_unknown_fields(self):
         rows = [
@@ -224,7 +224,7 @@ class Views(unittest.TestCase):
             "a,b",
             'a"b',
             "two\nlines",
-            "проверка",
+            "résumé",
             "x\\y",
             "  spaced  ",
         ]
@@ -287,7 +287,7 @@ class Views(unittest.TestCase):
         git("init", "-q")
         sub = self.root / "sub dir"
         sub.mkdir()
-        self.file = sub / "проверка.txt"
+        self.file = sub / "résumé.txt"
         baseline = [f"rule-{i:03} validated\r\n".encode() for i in range(170)]
         self.file.write_bytes(b"".join(baseline))
         git("add", "--", ".")

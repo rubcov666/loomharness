@@ -73,11 +73,11 @@ def compact_powershell(line):
 def capture(args):
     command = args.argv
     if command[:1] != ["--"] or len(command) < 2:
-        raise ValueError("Укажите программу и аргументы после --.")
+        raise ValueError("Pass a program and its arguments after --.")
     path = Path(args.log)
     # Never overwrite evidence from another run. Keep the child's original bytes.
     with path.open("xb") as logfile:
-        print(f"Полный лог: {path}", file=sys.stderr, flush=True)
+        print(f"Full log: {path}", file=sys.stderr, flush=True)
         result = subprocess.run(command[1:], stdout=logfile, stderr=subprocess.STDOUT)
     status = result.returncode if result.returncode >= 0 else 128 - result.returncode
     passed = steps = total = relevant = 0
@@ -115,16 +115,16 @@ def capture(args):
                 priority.append(item)
             elif first_omitted is None:
                 first_omitted = first
-    counts = f" | отдельных успешных тестов={passed}" if passed else ""
+    counts = f" | passed tests={passed}" if passed else ""
     if steps:
-        counts += f" | шагов сборки={steps}"
-    print(f"exit={result.returncode} | строк={total}{counts}")
+        counts += f" | build steps={steps}"
+    print(f"exit={result.returncode} | lines={total}{counts}")
     shown = sorted(set(detail + priority + list(tail)))
     represented = sum(last - first + 1 for first, last, _ in shown)
     incomplete = represented < relevant or clipped
     if incomplete and path.stat().st_size <= 4096:
         # A second model turn can cost more than a complete short log.
-        print("Полный вывод:")
+        print("Full output:")
         with path.open(encoding="utf-8-sig", errors="backslashreplace") as logfile:
             print(ANSI.sub("", "".join(compact_powershell(line) for line in logfile)).rstrip("\n"))
         return status
@@ -132,13 +132,13 @@ def capture(args):
         location = str(first) if first == last else f"{first}-{last}"
         print(f"{location}: {line}")
     if incomplete:
-        print(f"REVIEW: сокращено строк по количеству или длине. "
-              f"Показано {represented} из {relevant} строк подробностей. "
-              f"Откройте полный лог со строки {first_omitted}.")
+        print(f"REVIEW: output shortened by line count or length. "
+              f"Showing {represented} of {relevant} detail lines. "
+              f"Read the full log from line {first_omitted}.")
     if total == 0:
-        print("REVIEW: пустой журнал. Проверьте результат по самому объекту.")
+        print("REVIEW: empty log. Check the resulting artifact.")
     elif not (relevant or passed or steps):
-        print("REVIEW: журнал не содержит содержательного вывода.")
+        print("REVIEW: the log has no substantive output.")
     return status
 
 
@@ -146,12 +146,12 @@ def codex_request(cwd, method, params, *, executable=None):
     """Query the local Codex app-server for this working directory."""
     exe = shutil.which(executable or "codex")
     if not exe:
-        raise ValueError("Для аудита установите Codex CLI и добавьте его в PATH.")
+        raise ValueError("Install Codex CLI and add it to PATH to run the audit.")
     with subprocess.Popen([exe, "app-server", "--listen", "stdio://"], cwd=cwd,
                           stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                           text=True, encoding="utf8") as proc:
         def kill_if_running():
-            # PID может быть переиспользован, если codex уже завершился.
+            # The PID may have been reused if Codex already exited.
             if proc.poll() is None:
                 proc.kill()
         timer = Timer(15, kill_if_running)
@@ -172,7 +172,7 @@ def codex_request(cwd, method, params, *, executable=None):
                             error = reply["error"]
                             raise ValueError(f"Codex {method}: {error.get('message', 'request failed')} ({error.get('code')})")
                         return reply["result"]
-                raise ValueError(f"Codex не вернул результат {method}.")
+                raise ValueError(f"Codex returned no result for {method}.")
 
             request(1, "initialize", {"clientInfo": {"name": "harness_audit", "version": "1"},
                                       "capabilities": {"experimentalApi": True}})
@@ -233,9 +233,9 @@ def audit(cwd, config):
     visible = visible_instructions(cwd)
     seen = {}
     duplicates = []
-    print("Файлы AGENTS для текущей папки (сверху вниз):")
+    print("AGENTS files for this directory (top down):")
     if visible is None:
-        print("Предпросмотр CLI недоступен. Ниже оценка по конфигурации и файлам на диске.")
+        print("CLI preview unavailable. Estimate based on configuration and local files.")
     for directory, global_scope in [(home, True), *((p, False) for p in dirs)]:
         for name in (names if global_scope else names + fallback):
             if Path(name).name != name or name in {"", ".", ".."}:
@@ -255,12 +255,12 @@ def audit(cwd, config):
             if visible is not None and needle:
                 at = visible.find(needle)
                 if at < 0:
-                    print(f"  {label} | не подтверждён в предпросмотре CLI")
+                    print(f"  {label} | unconfirmed by CLI preview")
                     break
                 visible = visible[at + len(needle):]
             if not global_scope and needle:
                 remaining -= used
-            print(f"  {label} | {used}/{len(raw)} байт")
+            print(f"  {label} | {used}/{len(raw)} bytes")
             # A clipped last line is not evidence of a duplicate instruction.
             content = decoded.splitlines()
             if used < len(raw) and not raw[:used].endswith((b"\n", b"\r")):
@@ -275,17 +275,17 @@ def audit(cwd, config):
                 else:
                     seen[key] = location
             break
-    print(f"Повторяющиеся строки от 24 знаков: {len(duplicates)}")
+    print(f"Duplicate lines of at least 24 characters: {len(duplicates)}")
     for a, b in duplicates[:12]:
         print(f"  {a} = {b}")
     if len(duplicates) > 12:
-        print("Показаны первые 12 пар.")
+        print("Showing the first 12 pairs.")
     servers = config.get("mcp_servers") or {}
-    print("Настроенные MCP (подключение к серверам не проверяется):")
+    print("Configured MCP servers (connectivity unchecked):")
     for name, server in sorted(servers.items()):
         print(f"  {name} | {'on' if server.get('enabled', True) else 'off'}")
     if not servers:
-        print("  нет в конфигурации CLI")
+        print("  none in CLI configuration")
 
 
 DECLARATION = re.compile(
@@ -303,7 +303,7 @@ def file_list(cwd):
     if rg := shutil.which("rg"):
         listed = subprocess.run([rg, "--files", "--null", "--no-require-git"], cwd=cwd, capture_output=True)
         if listed.returncode not in (0, 1):
-            raise ValueError("Не удалось перечислить файлы рабочей папки.")
+            raise ValueError("Could not list workspace files.")
         return cwd, {Path(os.fsdecode(entry)).as_posix() for entry in listed.stdout.split(b"\0") if entry}, None
     paths = []
     for directory, dirs, files in os.walk(cwd):
@@ -334,7 +334,7 @@ def content_misses(cwd, term, git):
 def code_map(cwd, query, limit):
     terms = query.casefold().split()
     if not terms or not 1 <= limit <= 50:
-        raise ValueError("Нужен поисковый запрос и --limit от 1 до 50.")
+        raise ValueError("Supply a query and --limit from 1 to 50.")
     root, paths, git = file_list(cwd.resolve())
     selective = max(terms, key=len)
     misses = content_misses(root, selective, git)
@@ -373,8 +373,8 @@ def code_map(cwd, query, limit):
             score, number, symbol = best
             results.append((score, name, number, symbol))
     results.sort(key=lambda row: (tuple(-int(x) for x in row[0]), row[1]))
-    print(f"Файлов с совпадениями: {len(results)}. Показано: {min(limit, len(results))}. "
-          f"Пропущено файлов: {skipped}. Каталог: {Path(os.path.relpath(root, cwd.resolve())).as_posix()}")
+    print(f"Matching files: {len(results)}. Shown: {min(limit, len(results))}. "
+          f"Skipped files: {skipped}. Directory: {Path(os.path.relpath(root, cwd.resolve())).as_posix()}")
     for _, name, number, symbol in results[:limit]:
         print(f"{name}:{number}" + (f"  {symbol}" if symbol else ""))
     return 0 if results else 1
@@ -383,26 +383,26 @@ def code_map(cwd, query, limit):
 def reuse_result(args):
     """Compare explicitly declared local inputs, outputs and method. Never execute the action."""
     if not args.method.strip():
-        raise ValueError("Укажите способ получения результата, версию и значимые настройки.")
+        raise ValueError("Specify the processing method, version and relevant settings.")
     record = args.record.absolute()
     requested = (*args.input, *args.result)
     files = [p.resolve() for p in requested]
     if record.resolve() in files or set(files[:len(args.input)]) & set(files[len(args.input):]):
-        raise ValueError("Разделите исходные файлы, готовый результат и запись проверки.")
+        raise ValueError("Use distinct paths for inputs, results and the receipt.")
     # A record is just a digest. Never read a path or execute a command from it.
-    marker = "harness-kit/local-result-v1"  # сохраняем прежнее значение: это метка persisted-рецептов context.py reuse
+    marker = "harness-kit/local-result-v1"  # Keep the on-disk receipt format compatible.
     try:
         with record.open("rb") as stream:
             previous = stream.read(257)
         if len(previous) > 256:
-            raise ValueError("Путь записи занят другим файлом.")
+            raise ValueError("Another file occupies the receipt path.")
         stored = json.loads(previous)
         if not isinstance(stored, dict) or stored.get("format") != marker or not re.fullmatch(
                 r"[0-9a-f]{64}", str(stored.get("sha256", ""))):
-            raise ValueError("Путь записи занят другим файлом.")
+            raise ValueError("Another file occupies the receipt path.")
     except FileNotFoundError:
         if not args.save:
-            print("RECHECK: запись для сравнения отсутствует.")
+            print("RECHECK: no comparison receipt.")
             return 1
         previous = stored = None
     def stamp(info):
@@ -411,26 +411,26 @@ def reuse_result(args):
     for p in files:
         if not p.is_file():
             if args.save:
-                raise ValueError(f"Для записи нужен обычный файл: {p}")
-            print(f"RECHECK: файл недоступен: {p}")
+                raise ValueError(f"Recording requires a regular file: {p}")
+            print(f"RECHECK: file unavailable: {p}")
             return 1
         path_info = p.stat()
         with p.open("rb") as stream:
             handle_info = os.fstat(stream.fileno())
             if not os.path.samestat(path_info, handle_info):
-                raise ValueError(f"Файл был заменён: {p}")
+                raise ValueError(f"File was replaced: {p}")
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
             if stamp(handle_info) != stamp(os.fstat(stream.fileno())):
-                raise ValueError(f"Файл изменился при чтении: {p}")
+                raise ValueError(f"File changed while reading: {p}")
         entries.append((os.path.normcase(str(p)), digest))
         stamps.append(stamp(path_info))
     if any(stamp(p.stat()) != known for p, known in zip(requested, stamps)):
-        raise ValueError("Файлы изменились во время сверки.")
+        raise ValueError("Files changed during comparison.")
     names = [os.path.normcase(str(p.absolute())) for p in requested]
     payload = json.dumps([args.method, len(args.input), names, entries], ensure_ascii=True).encode()
     expected = {"format": marker, "sha256": hashlib.sha256(payload).hexdigest()}
     if not args.save:
-        print("UNCHANGED" if expected == stored else "RECHECK: входы, результат или способ изменились.")
+        print("UNCHANGED" if expected == stored else "RECHECK: inputs, results or method changed.")
         return int(expected != stored)
     if expected != stored:
         with tempfile.NamedTemporaryFile(dir=record.parent, delete=False) as stream:
@@ -444,28 +444,28 @@ def reuse_result(args):
                     os.link(tmp, record)
             else:
                 if record.read_bytes() != previous:
-                    raise ValueError("Запись параллельно изменилась. Повторите сверку.")
+                    raise ValueError("Receipt changed concurrently. Retry the comparison.")
                 tmp.replace(record)
         finally:
             tmp.unlink(missing_ok=True)
-    print(f"RECORDED: входов {len(args.input)}, результатов {len(args.result)}.")
+    print(f"RECORDED: {len(args.input)} inputs, {len(args.result)} results.")
     return 0
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
-    run = sub.add_parser("run", help="Выполнить команду с сохранением полного лога.")
-    run.add_argument("--log", required=True, help="Новый файл в существующей папке.")
+    run = sub.add_parser("run", help="Run a command and save its full log.")
+    run.add_argument("--log", required=True, help="A new file in an existing directory.")
     run.add_argument("argv", nargs=argparse.REMAINDER)
-    sub.add_parser("audit", help="Проверить инструкции и настроенные MCP для текущей папки.")
-    reuse = sub.add_parser("reuse", help="Сверить входы и готовые локальные результаты любого формата.")
+    sub.add_parser("audit", help="Audit instructions and MCP configuration for this directory.")
+    reuse = sub.add_parser("reuse", help="Compare inputs and saved local results of any format.")
     reuse.add_argument("--record", required=True, type=Path)
-    reuse.add_argument("--method", required=True, help="Способ получения, версия и значимые настройки.")
+    reuse.add_argument("--method", required=True, help="Processing method, version and relevant settings.")
     reuse.add_argument("--input", required=True, type=Path, action="append")
     reuse.add_argument("--result", required=True, type=Path, action="append")
-    reuse.add_argument("--save", action="store_true", help="Записать версии после проверки самого результата.")
-    search = sub.add_parser("map", help="Найти связанные текстовые файлы и строки в рабочей папке.")
+    reuse.add_argument("--save", action="store_true", help="Record file versions after verifying the result.")
+    search = sub.add_parser("map", help="Find relevant files and lines in the working directory.")
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=8)
     symbol = sub.add_parser("symbol", help="read one Java method and its overloads from a local file")

@@ -103,7 +103,7 @@ def summarize_run(log_path, code, stderr=None):
     # The chat receives a bounded digest; the full bytes stay in the log file.
     # Stream the file: a build log can be hundreds of megabytes, and the digest
     # needs only the first non-blank lines and the tail.
-    print(f"Полный лог: {log_path}", file=stderr)
+    print(f"Full log: {log_path}", file=stderr)
     first = []
     tail = deque(maxlen=3)
     total = 0
@@ -119,7 +119,7 @@ def summarize_run(log_path, code, stderr=None):
                 tail.append(line)
     except OSError:
         return
-    print(f"exit={code} | строк={total}", file=stderr)
+    print(f"exit={code} | lines={total}", file=stderr)
     picked = first + (["…"] if total > 5 else []) + list(tail)
     for line in picked:
         print(line[:240], file=stderr)

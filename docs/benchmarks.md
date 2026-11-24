@@ -2,27 +2,34 @@
 
 ## Six tool-output measurements
 
-The six tasks in the [README](../README.md#token-benchmarks) use generated data. Each pair asks the same question twice and checks the answer. The runner counts the UTF-8 text the tool returns, including diagnostics and trailing newlines, using `o200k_base`. The baseline outputs total 15,008 tokens. The LoomHarness outputs total 1,346. The 91.0% reduction is calculated from these totals.
+The six CLI tasks in the [README](../README.md#token-benchmarks) use generated data. Each pair asks the same question twice and checks the answer. The runner counts the UTF-8 text the tool returns, including diagnostics and trailing newlines, using `o200k_base`. The baseline outputs total 15,008 tokens. The LoomHarness outputs total 1,346. The 91.0% reduction is calculated from these totals.
 
-Use Python 3.11+ and Git. From the root of a checkout, run the following in a Python environment of your choice.
+For an exact reproduction, use Python 3.11+ and Git with the source revision below. It contains the original 1.0.0 diagnostics used in these counts. Later English wording can produce different token counts for the same result. The benchmark runner is part of the source repository. [Measured source revision](https://github.com/rubcov666/loomharness/tree/db9155686d651485da10c1d61d5c65ffe7464cff)
 
 ```sh
+git clone https://github.com/rubcov666/loomharness.git loomharness-benchmark
+cd loomharness-benchmark
+git switch --detach db9155686d651485da10c1d61d5c65ffe7464cff
 python -m pip install tiktoken==0.14.0
 python tests/measure_tool_tokens.py
 ```
 
 The script creates a temporary project and Git repository and prints the six-row Markdown table. These LoomHarness commands use the Python standard library. Only the measurement script needs the tokenizer.
 
-| Question | Baseline | LoomHarness | Answer checked |
-|---|---|---|---|
-| What happened in five test runs? | Five full logs and their exit codes | Five `context.py run` responses, including the saved-log locations and any follow-up needed to read the cause | Successful, empty and skipped runs, failing test and final reason code |
-| Where is a pricing function declared? | Every `git grep -n` hit for the name | `context.py map` | Source file and declaration line |
-| What is the status of every job? | Complete JSON for 60 jobs | `view.py --fields id checks` | All 60 rows in order, including the failed row and nested diagnostic |
-| How many lines contain a retry? | The default `view.py --find` response with matching excerpts | The same search with `--count` | 24 matching lines out of 240 |
-| How many samples reached the threshold? | All alerts from `metrics.py` | `metrics.py --summary` | 30 alerts among 120 samples, same coverage and peak |
-| What are the agents’ combined totals? | Full `team.py usage` with participant breakdown | The same command with `--summary` | Four participants, identical token totals and coverage |
+| Question | Baseline | LoomHarness | Answer checked | Measured tokens (baseline → LoomHarness) |
+|---|---|---|---|---:|
+| What happened in five test runs? | Five full logs and their exit codes | Five `context.py run` responses, including the saved-log locations and any follow-up needed to read the cause | Successful, empty and skipped runs, failing test and final reason code | 8,391 → 316 |
+| Where is a pricing function declared? | Every `git grep -n` hit for the name | `context.py map` | Source file and declaration line | 1,455 → 81 |
+| What is the status of every job? | Complete JSON for 60 jobs | `view.py --fields id checks` | All 60 rows in order, including the failed row and nested diagnostic | 3,956 → 746 |
+| How many lines contain a retry? | The default `view.py --find` response with matching excerpts | The same search with `--count` | 24 matching lines out of 240 | 228 → 12 |
+| How many samples reached the threshold? | All alerts from `metrics.py` | `metrics.py --summary` | 30 alerts among 120 samples, same coverage and peak | 786 → 98 |
+| What are the agents’ combined totals? | Full `team.py usage` with participant breakdown | The same command with `--summary` | Four participants, identical token totals and coverage | 192 → 93 |
 
 The change column uses `(LoomHarness − baseline) / baseline`. A targeted shell command such as `rg -c` can also answer a count question in a few tokens.
+
+### Projecting repeated operations
+
+The README also shows what the six measured outputs would amount to if each task ran 1,000 times with the same input and the same output length. Multiply each per-task count above by 1,000, then divide by 1,000,000 to express it in millions. The projected totals are 15.008 million baseline tokens and 1.346 million LoomHarness tokens across 6,000 executions. The difference is 13.662 million tool-output tokens. Model input, generated replies, cache usage and billing are separate measurements.
 
 ## Eight-request build investigation
 

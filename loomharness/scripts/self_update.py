@@ -1,12 +1,12 @@
 """Quiet self-update for the installed loomharness copy.
 
-Конфигурация: $CODEX_HOME/loomharness/self-update.json
+Configuration: $CODEX_HOME/loomharness/self-update.json
     {"origin": "git-url", "branch": "main", "last_check": epoch,
      "remote_head": sha, "local_head": sha, "backup": "path"}
-Проверка дистанционной версии кэшируется на 24 часа — обычный вызов
-`harness.py update` ничего не скачивает. Применение отказывает, пока на любой
-доске есть активные поручения. Каталог установки может быть git-копией
-(then ff-only pull) или обычной папкой (clone + compile check + overlay + backup).
+Remote version checks are cached for 24 hours. A routine update check leaves
+the installation untouched. Applying an update waits for all board assignments
+to finish. Git installations fast-forward. Plain directories use a checked
+clone, compilation, overlay and backup.
 """
 
 import json
@@ -22,7 +22,7 @@ from pathlib import Path
 
 try:
     import hk
-except ImportError:  # python -I исключает каталог скрипта из sys.path
+except ImportError:  # python -I excludes the script directory from sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import hk
 
@@ -74,7 +74,7 @@ def git_exe():
 def run_git(args, timeout=60):
     git = git_exe()
     if not git:
-        raise ValueError("git не найден в PATH")
+        raise ValueError("Git not found on PATH")
     result = subprocess.run([git, *args], capture_output=True, encoding="utf8", timeout=timeout)
     if result.returncode:
         raise ValueError(result.stderr.strip() or f"git {' '.join(args)} failed")
@@ -92,7 +92,7 @@ def detect_origin():
 def remote_head(origin, branch):
     git = git_exe()
     if not git:
-        raise ValueError("git не найден в PATH")
+        raise ValueError("Git not found on PATH")
     result = subprocess.run([git, "ls-remote", origin, branch], capture_output=True, encoding="utf8", timeout=30)
     if result.returncode:
         return None
@@ -124,18 +124,18 @@ def compile_check(root):
 
 
 def check(force=False):
-    # Тихая сверка: не чаще раза в сутки, без изменения локальных файлов.
+    # Cache version queries for a day. A check leaves skill files unchanged.
     cfg = load_config()
     now = time.time()
     if not force and now - cfg.get("last_check", 0) < CHECK_INTERVAL and cfg.get("remote_head"):
         return cfg
     origin = cfg.get("origin") or detect_origin()
     if not origin:
-        return dict(cfg, error="источник не настроен: harness.py update --set-origin URL [--branch main]")
+        return dict(cfg, error="No update source configured: harness.py update --set-origin URL [--branch main]")
     branch = cfg.get("branch", "main")
     head = remote_head(origin, branch)
     if not head:
-        return dict(cfg, error=f"не удалось прочитать {branch} у {origin}")
+        return dict(cfg, error=f"Could not read {branch} from {origin}")
     cfg.update(origin=origin, branch=branch, last_check=now, remote_head=head)
     save_config(cfg)
     return cfg
@@ -156,10 +156,10 @@ def backup_current(root):
 
 
 def overlay(source, target):
-    # Замена без переименования каталога: установленная копия может обслуживать
-    # запущенный процесс. Файлы источника перезаписываются, устаревшие удаляются.
-    # Удаление ограничено верхним уровнем TRACKED_TOP: пользовательские файлы
-    # рядом со скилом (заметки, локальные правки вне отслеживаемых путей) не трогаем.
+    # Replace files in place because a running process may use the directory.
+    # Overlay files from the source and remove obsolete tracked entries.
+    # Restrict removals to TRACKED_TOP so user notes and other files outside
+    # the managed paths survive.
     source_files = {p.relative_to(source) for p in source.rglob("*") if p.is_file()}
     for rel in source_files:
         dest = target / rel
@@ -188,37 +188,37 @@ def overlay(source, target):
 
 def apply_update():
     if any_active_work():
-        raise ValueError("на досках есть активные поручения; обновление отложено")
+        raise ValueError("Active board assignments exist. Update deferred.")
     cfg = check(force=True)
     if cfg.get("error"):
         raise ValueError(cfg["error"])
     origin, branch = cfg["origin"], cfg.get("branch", "main")
     root = skill_root()
     if (root / ".git").is_dir():
-        # Опасен не всякий «грязный» статус, а только изменённые отслеживаемые
-        # файлы: git reset --hard при откате стирает именно их. Неотслеживаемые
-        # файлы (заметки пользователя, __pycache__) reset не трогает.
+        # Rollback resets tracked files, so reject local tracked edits.
+        # Untracked files, such as user notes and __pycache__, are outside
+        # the reset's managed file set.
         status = run_git(["-C", str(root), "status", "--porcelain"]).splitlines()
         dirty = [line for line in status if not line.startswith(("??", "!!"))]
         if dirty:
-            raise ValueError("в каталоге навыка есть незафиксированные правки отслеживаемых файлов; "
-                             "зафиксируйте или уберите их перед обновлением")
+            raise ValueError("The skill directory has uncommitted changes in tracked files. "
+                             "Commit or set them aside before updating.")
         before = run_git(["-C", str(root), "rev-parse", "HEAD"]).strip()
         run_git(["-C", str(root), "pull", "--ff-only", "origin", branch])
         after = run_git(["-C", str(root), "rev-parse", "HEAD"]).strip()
         if before == after:
-            return "уже актуально"
+            return "Already up to date"
         try:
             compile_check(root)
         except py_compile.PyCompileError:
-            # Дерево было чистым перед pull, поэтому --hard безопасен: он лишь
-            # возвращает отслеживаемые файлы к зафиксированному состоянию before.
+            # Tracked files were clean before pull. Restore those files to
+            # the recorded pre-update commit.
             run_git(["-C", str(root), "reset", "--hard", before])
-            raise ValueError("новая версия не компилируется; выполнен откат git")
+            raise ValueError("The new version does not compile. Git rollback completed.")
         cfg["local_head"] = after
         cfg["before_head"] = before
         save_config(cfg)
-        return f"обновлено {before[:8]}..{after[:8]} (версия {local_version()})"
+        return f"Updated {before[:8]}..{after[:8]} (version {local_version()})"
     with tempfile.TemporaryDirectory() as tmp:
         clone = Path(tmp) / "skill"
         run_git(["clone", "--depth", "1", "--branch", branch, origin, str(clone)], timeout=300)
@@ -228,7 +228,7 @@ def apply_update():
     cfg = load_config()
     cfg["local_head"] = cfg.get("remote_head")
     save_config(cfg)
-    return f"обновлено из {origin} (версия {local_version()}); прежняя копия в {backup}"
+    return f"Updated from {origin} (version {local_version()}). Previous copy: {backup}"
 
 
 def rollback():
@@ -237,14 +237,14 @@ def rollback():
     if (root / ".git").is_dir():
         before = cfg.get("before_head")
         if not before:
-            raise ValueError("нет записи о прежнем коммите")
+            raise ValueError("No previous commit recorded")
         run_git(["-C", str(root), "reset", "--hard", before])
-        return f"откат к {before[:8]} (версия {local_version()})"
+        return f"Rolled back to {before[:8]} (version {local_version()})"
     backup = cfg.get("backup")
     if not backup or not Path(backup).is_dir():
-        raise ValueError("нет доступной резервной копии")
+        raise ValueError("No backup available")
     overlay(Path(backup), root)
-    return f"восстановлено из {backup} (версия {local_version()})"
+    return f"Restored from {backup} (version {local_version()})"
 
 
 def main(args):
@@ -254,7 +254,7 @@ def main(args):
         if args.branch:
             cfg["branch"] = args.branch
         save_config(cfg)
-        print(f"источник обновления: {cfg['origin']} ({cfg.get('branch', 'main')})")
+        print(f"Update source: {cfg['origin']} ({cfg.get('branch', 'main')})")
         return 0
     if args.rollback:
         print(rollback())
@@ -269,9 +269,9 @@ def main(args):
     local = run_git(["-C", str(skill_root()), "rev-parse", "HEAD"],
                     ).strip() if (skill_root() / ".git").is_dir() else cfg.get("local_head")
     if local == cfg.get("remote_head"):
-        print(f"актуально (версия {local_version()})")
+        print(f"Up to date (version {local_version()})")
         return 0
-    print(f"доступна новая версия; локально {local_version()}. Применить: harness.py update --apply")
+    print(f"New version available. Installed: {local_version()}. Apply with: harness.py update --apply")
     return 0
 
 

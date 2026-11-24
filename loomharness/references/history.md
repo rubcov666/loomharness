@@ -1,22 +1,22 @@
-# Когда окупается сжатие истории
+# When history compaction pays off
 
-Сверяй размер текущего ввода с окном выбранной модели перед очередным запросом и после смены модели. Учитывай инструкции, схемы инструментов, историю, результаты и кэшированную часть ввода ровно один раз. Накопленные счётчики за чат описывают расход за много запросов. Если размер окна или ввода неизвестен, запроси показание клиента либо используй его штатный режим.
+Before a request and after a model change, compare active input with the model's context window. Count instructions, tool schemas, history, results and cached input once each. Chat totals span multiple requests. If the window or active size is unknown, ask the client for its reading or use its native policy.
 
-По умолчанию порог равен меньшему из 256 000 токенов и 75% окна. Ориентир для оставшейся истории составляет 5/16 порога. Для окна 1 000 000 это 256 000 и 80 000, для 128 000 — 96 000 и 30 000. Это начальные настройки для измерений. `--trigger` меняет верхнюю границу, `--target` задаёт желаемый объём. Если модель сменилась и цель достигает нового порога, применяется пропорциональная цель.
+The default trigger is the smaller of 256,000 tokens and 75% of the window. The target is 5/16 of the trigger. For a 1,000,000-token window this gives 256,000 and 80,000. For 128,000 it gives 96,000 and 30,000. Tune the upper bound with `--trigger` and the target with `--target`. When a model change puts the target at or above the new trigger, the proportional target applies.
 
-Сохрани точные требования и исключения, решения владельца, текущий вопрос, идентификаторы и ссылки на проверяемые источники. Оставь последние сообщения и незавершённый вызов инструмента с его результатом целиком. Завершённые этапы можно свернуть в краткие выводы. Короткой сводке пригодится путь или ссылка на исходную переписку. После сжатия сверь эти факты и размер следующего ввода по счётчику клиента. Сравнивай стоимость одинаково правильно выполненных задач с учётом сводки и повторных чтений.
+Preserve exact requirements and exceptions, owner decisions, the open question, IDs and source links. Keep the latest messages and each unfinished tool call with its entire result. Summarize completed work and link its source. After compaction, check these facts and the next input size with the client. Compare equally correct outcomes, including summary and reread costs.
 
-## Расход до и после сводки
+## Accounting for summaries
 
-С первого запроса передавай только данные для текущего решения. Полный вывод команды сохраняй через `context.py run --log`, для чтения используй `view.py --find` или `--fields`. Для повторного большого чтения `view.py --receipt new` возвращает код представления вместе с данными. Передай его при следующем таком же чтении, пока прежние данные доступны агенту. После потери исходного представления запроси нужный фрагмент заново. Это работает и через аргумент `receipt` инструмента `harness_view`. [Чтение источников](context.md#фрагменты-и-версии)
+Send only the data needed for each decision, starting with the first request. Save full output with `context.py run --log` and select relevant content with `view.py --find` or `--fields`. For large repeated reads, `view.py --receipt new` returns a receipt with the data. Reuse it while the previous view remains available to the agent. Retrieve an excerpt again if that view is lost. MCP exposes the same option as `harness_view.receipt`. [Reading sources](context.md#excerpts-and-versions)
 
-При достижении порога передай в `budget` ожидаемое число обычных обращений к модели до конца этапа или следующей сводки. Включи ближайшее обращение. Значение `0` означает, что ответ уже готов, `1` подходит для финального ответа. При неизвестном числе используется оценка в два обращения. `compaction_tokens` задаёт суммарный дополнительный вход и выход на создание сводки. По умолчанию расчёт закладывает чтение всего активного ввода и до 4096 токенов сводки. Если хост передаёт для сжатия только завершённый сегмент, подставь его замер. В `reread_tokens` оцени полный дополнительный расход на восстановление деталей, включая ввод лишних обращений к модели. Начальная оценка равна нулю.
+At the trigger, give `budget` the expected number of ordinary model calls before the end of the stage or next summary, including the next call. Use zero for a finished answer and one for a final reply. The default estimate is two. `compaction_tokens` covers additional summary input and output. The default allows for the current input plus up to 4,096 summary tokens. If the client sends only a completed segment, use its measured size. `reread_tokens` covers the full extra cost of recovering omitted details, including additional model inputs. Its default is zero.
 
-Экономия за одно обращение равна разнице между текущим и ожидаемым следующим вводом. Сжатие окупается, когда эта разница, умноженная на число оставшихся обращений, превышает затраты на сводку и восстановление. При равенстве сохраняется исходная история. Например, при 256 000 → 80 000 и сводке за 260 096 токенов одного обращения мало, двух достаточно при нулевой цене восстановления. `break_even_calls` показывает первое число обращений с положительной экономией. При заполнении 7/8 окна политика отдаёт приоритет месту для следующего ответа, если удаётся освободить запас с сохранением защищённого материала. Эти оценки можно проверить по журналу клиента. При сравнении денежных затрат отдельно учитывай кэш и тарифы на вход и выход.
+Savings per call equal the difference between current and projected input. Compact when this difference times remaining calls exceeds summary and recovery costs. Keep history at break-even. For 256,000 → 80,000 with a summary costing 260,096 tokens and zero recovery, two calls pay off. `break_even_calls` is the first profitable call count. At 7/8 of the window, prefer room for the next reply if protected material fits. Use the client log to check estimates and separate cached input and output for billing.
 
-## Встроенное сжатие клиента
+## Native client compaction
 
-Команды ниже запускаются из каталога навыка. В `--window` передай размер окна, который сообщает активный клиент. При наличии меньшего согласованного порога укажи его в `--trigger`. Для разового запуска настройки передаются только дочернему процессу.
+Run the commands below from the skill directory. Pass the active client's window size to `--window`. Use `--trigger` for a lower agreed threshold. Launch settings apply only to the child process.
 
 ```sh
 python scripts/history.py launch --window 1000000 codex
@@ -25,41 +25,41 @@ python scripts/history.py budget --window 1000000 --used 256000 --client gemini
 python scripts/history.py budget --window 1000000 --used 256000 --remaining-calls 1
 ```
 
-| Клиент | Как применяется порог |
+| Client | How the threshold is applied |
 |---|---|
-| Codex | Команда `launch` передаёт `model_auto_compact_token_limit` и режим подсчёта всего активного контекста. [Настройки Codex](https://learn.chatgpt.com/docs/config-file/config-reference) |
-| Claude Code | Команда `launch` задаёт `CLAUDE_CODE_AUTO_COMPACT_WINDOW` для процесса. Клиент принимает абсолютное окно от 100 000 до 1 000 000. Для меньшего порога используй переносимый режим. [Настройки Claude Code](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| Gemini CLI | Добавь поля `adapter.settings` из команды `budget` в настройки проекта `.gemini/settings.json` и перезапусти CLI. Для окна в миллион доля `model.compressionThreshold` равна 0.256. При смене окна пересчитай долю. [Настройки Gemini CLI](https://geminicli.com/docs/reference/configuration/) |
+| Codex | `launch` sets `model_auto_compact_token_limit` and counts the full active context. [Codex settings](https://learn.chatgpt.com/docs/config-file/config-reference) |
+| Claude Code | `launch` sets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` for the process. The client accepts absolute windows from 100,000 to 1,000,000. Use the portable mode for lower thresholds. [Claude Code settings](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| Gemini CLI | Add the `adapter.settings` returned by `budget` to `.gemini/settings.json` and restart the CLI. A million-token window uses `model.compressionThreshold` of 0.256. Recalculate when the window changes. [Gemini CLI settings](https://geminicli.com/docs/reference/configuration/) |
 
-Штатный клиент сам формирует сводку и определяет её фактический размер. Для клиента с единственной настройкой `launch` и `budget --client` рассчитывают фиксированный порог по оценкам на момент запуска. Флаги `--remaining-calls`, `--compaction-tokens` и `--reread-tokens` указываются перед именем CLI в `launch`. При смене модели или характера работы обнови порог через интерфейс клиента либо при следующем запуске. Перед включением политики учти уже действующие настройки проекта.
+The native client generates the summary and sets its final size. For clients with one threshold, `launch` and `budget --client` calculate a fixed trigger from the initial estimates. Pass `--remaining-calls`, `--compaction-tokens` and `--reread-tokens` before the client name in `launch`. Check existing project settings. Update the threshold through the client or next launch when the model or workload changes.
 
-## MCP и клиенты с хуками
+## MCP or CLI integration
 
-Вызови `harness_context_budget` через MCP или `history.py budget` через командную строку. Передай `window_tokens`, `used_tokens`, объём дословного материала `protected_tokens` и известные оценки `remaining_calls`, `compaction_tokens`, `reread_tokens`. Ответ `keep` сохраняет историю, `measure` указывает недостающее измерение. При `compact` поле `reason` объясняет решение экономией токенов или заполнением окна. При `preserve` продолжай с исходным материалом и учитывай указанную причину.
+Call `harness_context_budget` through MCP or `history.py budget` on the CLI. Supply `window_tokens`, `used_tokens`, verbatim `protected_tokens` and available estimates for `remaining_calls`, `compaction_tokens` and `reread_tokens`. `keep` retains history, `measure` requests missing data, and `compact` gives its reason. For `preserve` keep the original material and account for the stated constraint.
 
-Мост с событиями может приложить к `UserPromptSubmit` поле `context_usage` с теми же счётчиками и оценками и вызвать `harness.py hook --cli portable`. Включённый проект получает подсказку, когда решение меняется на `compact`. Адаптеры также понимают переданные мостом `tokenUsage.last.inputTokens` и `modelContextWindow` Codex, `context_window.current_usage` Claude Code, `usageMetadata.promptTokenCount` Gemini вместе с `window_tokens`. Доступность этих полей зависит от интерфейса клиента. Сам по себе ответ инструмента MCP оставляет историю в ведении хоста.
+An event bridge can attach these counters and estimates as `context_usage` on `UserPromptSubmit` and call `harness.py hook --cli portable`. An enabled project receives a hint when the decision changes to `compact`. Adapters also accept Codex `tokenUsage.last.inputTokens` with `modelContextWindow`, Claude Code `context_window.current_usage` and Gemini `usageMetadata.promptTokenCount` with `window_tokens` when exposed by the client. The host manages message history after an MCP response.
 
-## Клиент со своим списком сообщений
+## Clients that own the message list
 
-Сохрани исходный снимок локально. Клиент передаёт собственные сообщения без преобразования ролей, блоков изображений или идентификаторов инструментов. Размести инструкции и инструменты в неизменяемом `prefix`, остальное собери в последовательность `turns`. У каждого блока есть `messages` и `tokens` по счётчику выбранной модели, включая служебные токены. Объединяй вызов инструмента и все его ответы в одну неделимую группу. Пометка `"keep": true` защищает эту группу и всё после неё. Последняя группа защищена всегда.
+Save the original snapshot locally. Preserve client message roles, image blocks and tool IDs. Put stable instructions and tools in `prefix` and group the rest into `turns`. Each block has `messages` and `tokens` measured for the chosen model, including protocol overhead. Keep a tool call with all its results. Marking a group `"keep": true` protects that group and all later groups. The last group is always protected.
 
-Если SDK передаёт инструкции и инструменты отдельными полями запроса, оставь их у хоста. Учти их размер в `prefix.tokens`. В таком случае `prefix.messages` может быть пустым. Версию внешних инструкций и схем можно записать в `prefix.revision`, чтобы при их изменении клиент заново сверил сводку. После `replace` хост подставляет новый список в своё поле истории, например `input` в OpenAI Responses, `messages` в Anthropic Messages или `contents` в Gemini.
+If the SDK supplies instructions or tools in separate fields, leave them with the host and count them in `prefix.tokens`. In that case `prefix.messages` may be empty. Set `prefix.revision` to detect changed instructions and schemas. After `replace` populate the host's history field, such as OpenAI Responses `input`, Anthropic `messages` or Gemini `contents`.
 
 ```json
 {
   "window_tokens": 1000000,
-  "prefix": {"tokens": 10000, "messages": [{"role": "system", "content": "Инструкции проекта"}]},
+  "prefix": {"tokens": 10000, "messages": [{"role": "system", "content": "Project instructions"}]},
   "turns": [
-    {"tokens": 200000, "messages": [{"role": "user", "content": "Материалы завершённого этапа"}]},
-    {"tokens": 50000, "messages": [{"role": "user", "content": "Текущий вопрос и доказательства"}]}
+    {"tokens": 200000, "messages": [{"role": "user", "content": "Completed stage materials"}]},
+    {"tokens": 50000, "messages": [{"role": "user", "content": "Current question and evidence"}]}
   ]
 }
 ```
 
-Числа в примере иллюстративные. Добавь оценки расхода в корень снимка. В завершённой группе можно задать `anchors` со строками из её сообщений, например точной формулировкой исключения и ссылкой на источник. Длинные материалы, которые понадобятся целиком, помечай `keep`.
+The example counts are illustrative. Add cost estimates at the snapshot root. A completed group can name verbatim `anchors` from its messages, such as an exception and its source. Mark material needed in full with `keep`.
 
-`python scripts/history.py plan snapshot.json` рассчитывает экономию с учётом границ целых групп. При `compact` он возвращает число групп `summarize_turns`, подпись исходного материала `source_sha256` и при наличии список `required_anchors`. Если подходящая сводка уже есть, передай её сразу в `apply`. Иначе попроси модель свернуть выбранные группы. Запиши сводку в `checkpoint.json` с полями `source_sha256`, `tokens` и `messages` в формате клиента. Сохрани отмеченные фразы дословно и используй роль, соответствующую исходным данным.
+`python scripts/history.py plan snapshot.json` accounts for whole-group boundaries. On `compact` it returns `summarize_turns`, `source_sha256` and any `required_anchors`. Pass an existing matching summary directly to `apply`. Otherwise summarize the selected groups into `checkpoint.json` with `source_sha256`, `tokens` and client-format `messages`. Preserve anchors verbatim and use the appropriate source role.
 
-`apply` учитывает фактический размер сводки и нулевые дополнительные затраты на её создание. При пропущенной обязательной фразе возвращаются `preserve` и `missing_anchors`. Проверка ищет точный текст в сводке и постоянном префиксе. Достоверность смысла и связи вывода с источником проверь отдельно. В следующем цикле уже проверенную сводку можно включить в постоянный префикс и свернуть только новый завершённый этап. Если сводка остаётся в сокращаемой части истории, перенеси в её группу дословные фразы, которые должны пережить следующий цикл.
+`apply` uses the actual summary size with zero additional generation cost. Missing required text yields `preserve` and `missing_anchors`. Matching checks the summary and stable prefix for exact text. Verify meaning and source attribution separately. For the next cycle, move a verified summary to the stable prefix or carry forward any verbatim anchors in its group.
 
-`python scripts/history.py apply snapshot.json checkpoint.json` сверяет источник и собирает новый ввод. Только при `action=replace` передай возвращённый `messages` как **полный** ввод следующего запроса. Если сервер хранит историю по идентификатору, используй его операцию замены или чистую сессию, чтобы старый ввод не подставился повторно. Оригинал остаётся доступен для восстановления. При смене модели пересчитай размеры её токенизатором. В закрытом CLI без доступа к замене используй его штатную команду либо сохрани передачу для продолжения в новой сессии. Сам факт сохранения файла ещё не означает, что контекст сократился.
+`python scripts/history.py apply snapshot.json checkpoint.json` verifies the source and builds the next input. Only on `action=replace` send the returned `messages` as the complete history. If the server retains history by ID, use its replacement operation or a fresh session. Keep the original available for recovery. Recount with the new tokenizer when switching models. In closed clients use native compaction or a handoff to a new session. Check that the next request actually uses the smaller history.

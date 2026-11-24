@@ -23,9 +23,9 @@ sys.path.insert(0, str(SCRIPTS))
 
 
 def make_tmp():
-    # Системный TEMP может быть недоступен из песочницы, а tempfile.mkdtemp
-    # блокируется её перехватом os.mkdir — держим временные каталоги рядом
-    # с тестами и создаём их через pathlib.
+    # The system temp directory can be inaccessible in sandboxed runs.
+    # Create test directories with pathlib under the writable tests folder
+    # on platforms where tempfile.mkdtemp is intercepted.
     TMP_BASE.mkdir(parents=True, exist_ok=True)
     target = TMP_BASE / ("tmp-" + next(tempfile._get_candidate_names()))
     target.mkdir()
@@ -57,7 +57,7 @@ class SeriesTest(unittest.TestCase):
         result = metrics["summarize"](data, 2000)
         self.assertEqual(result["coverage"][0]["count"], 1)
         self.assertEqual(result["gaps"], ["2026-01-01T09:01:00Z"])
-        # peak и alerts считаются по наблюдениям внутри окон
+        # Peak and alerts use observations inside the windows.
         self.assertEqual(result["peak"]["value"], 2000)
         self.assertEqual(len(result["alerts"]), 1)
         self.assertEqual(len(result["outside_alerts"]), 1)
@@ -83,18 +83,18 @@ class PlanTest(unittest.TestCase):
 
     def test_for_prompt_budget_and_cache(self):
         (self.root / "HANDOFF.md").write_text(
-            "# План\n## Сейчас\n- [x] сделано ядро\n- [ ] дальше тесты\n", encoding="utf8")
-        first = plan["for_prompt"](self.root, "что дальше")
+            "# Plan\n## Current\n- [x] core done\n- [ ] next tests\n", encoding="utf8")
+        first = plan["for_prompt"](self.root, "what is next")
         self.assertIn("HANDOFF.md", first)
         self.assertLessEqual(len(first), 2000 + 400)
-        again = plan["for_prompt"](self.root, "что дальше")
-        self.assertIs(first, again)  # кэш по сигнатурам файлов
-        (self.root / "HANDOFF.md").write_text("# План\n- [ ] изменилось\n", encoding="utf8")
-        changed = plan["for_prompt"](self.root, "что дальше")
+        again = plan["for_prompt"](self.root, "what is next")
+        self.assertIs(first, again)  # File signatures determine cache identity.
+        (self.root / "HANDOFF.md").write_text("# Plan\n- [ ] changed\n", encoding="utf8")
+        changed = plan["for_prompt"](self.root, "what is next")
         self.assertIsNot(first, changed)
 
     def test_for_prompt_ignores_long_prompts(self):
-        self.assertEqual(plan["for_prompt"](self.root, "что дальше " + "x" * 200), "")
+        self.assertEqual(plan["for_prompt"](self.root, "what is next " + "x" * 200), "")
 
     def test_counted_rows(self):
         (self.root / "tasks.csv").write_text("id,status\n1,done\n2,done\n3,open\n", encoding="utf8")
@@ -111,7 +111,7 @@ class ViewTest(unittest.TestCase):
         table = "identifier display_name status\n" + "\n".join(
             f'{r["identifier"]} {r["display_name"]} {r["status"]}' for r in rows)
         self.assertEqual(view["choose"](full, [table]), table)
-        # при близких размерах держит исходник
+        # Keep the original when sizes are close.
         self.assertEqual(view["choose"]('{"a": 1}', ['a 1']), '{"a": 1}')
 
     def test_render_caps_by_whole_lines(self):

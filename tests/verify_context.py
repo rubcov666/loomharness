@@ -42,7 +42,7 @@ def verify_run(cwd):
         ("warn", b"tests/test_x.py::test_x PASSED [100%]\nWarning: fallback parser\n", 0, ["fallback parser"]),
         ("rust", b"test ledger::balance ... ok\nerror: type mismatch\n", 101, ["type mismatch", "=1"]),
         ("build", b"[1/2] Building CXX object src/main.o\ncompiler: bad token\n"
-         b"ninja: build stopped: subcommand failed.\n", 1, ["шагов сборки=1", "bad token", "build stopped"]),
+         b"ninja: build stopped: subcommand failed.\n", 1, ["build steps=1", "bad token", "build stopped"]),
         ("bytes", b"\xff bad byte\n", 2, ["\\xff"]),
         ("long", b"error: " + b"x" * 5000 + b" tail\n", 2, ["REVIEW"]),
         ("short", b"stage\n" * 35 + b"cause-tag=CASE732\n" + b"stage\n" * 35, 2, ["cause-tag=CASE732"]),
@@ -67,7 +67,7 @@ def verify_run(cwd):
     assert all(s in displayed for s in ("3: next step", "4: beforeafter", "5: Error: missing & failed", "Warning: retry"))
     assert "loading modules" not in displayed and "CLIXML" not in displayed
     full = capture(cwd, "short-powershell.log", xml + b"\n" + b"z" * 430 + b"\n")
-    assert "Полный вывод" in full and "loading modules" not in full and "z" * 430 in full
+    assert "Full output" in full and "loading modules" not in full and "z" * 430 in full
     unknown = envelope + progress + b'<Obj S="error"><Ref RefId="0"/></Obj></Objs>'
     foreign = b'<Objs xmlns="urn:foreign"><Obj S="progress"/></Objs>'
     broken = envelope + b'<Obj S="progress"></Objs>'
@@ -125,7 +125,7 @@ def verify_map(cwd):
     (cwd / "bad.py").write_bytes(b"\xff\n")
     res = invoke(cwd / "service", "map", "discount_rate", "--limit", "1")
     assert res.returncode == 0 and "tracked.py:1  discount_rate" in res.stdout, res
-    assert "совпадениями: 2" in res.stdout and "Пропущено файлов:" in res.stdout
+    assert "Matching files: 2" in res.stdout and "Skipped files:" in res.stdout
     all_rows = invoke(cwd, "map", "discount_rate")
     assert "usage.ts:1" in all_rows.stdout and "ignored.py" not in all_rows.stdout
     hidden = cwd / ".build"
@@ -139,23 +139,23 @@ def verify_map(cwd):
     locations = invoke(cwd / "service", "map", "release_gate")
     output = locations.stdout.replace("\\", "/")
     assert locations.returncode == 0 and ".build/rules:1  release_gate" in output, locations
-    assert output.splitlines()[0].endswith("Каталог: ..") and cwd.as_posix() not in output
+    assert output.splitlines()[0].endswith("Directory: ..") and cwd.as_posix() not in output
     assert ".build/new:1" in output and "generated.py" not in output
     assert invoke(cwd, "map", "missing_widget").returncode == 1
     assert invoke(cwd, "map", "", "--limit", "0").returncode != 0
 
 
 def verify_generic(cwd):
-    (cwd / "условия").write_text("Продление по согласованию\n", encoding="utf8")
+    (cwd / "terms-Ω").write_text("Résumé by agreement\n", encoding="utf8")
     (cwd / "support").mkdir()
-    (cwd / "support" / "source.txt").write_text("Согласовано продление\n", encoding="utf8")
+    (cwd / "support" / "source.txt").write_text("Accepted résumé\n", encoding="utf8")
     (cwd / "import.zig").write_text("const renewal = true;\n", encoding="utf8")
     (cwd / "bytes.bin").write_bytes(b"\x00renewal")
-    sources = invoke(cwd, "map", "продление").stdout.replace("\\", "/")
-    assert "условия:1" in sources and "support/source.txt:1" in sources, sources
+    sources = invoke(cwd, "map", "résumé").stdout.replace("\\", "/")
+    assert "terms-Ω:1" in sources and "support/source.txt:1" in sources, sources
     found = invoke(cwd, "map", "renewal")
     assert "import.zig:1" in found.stdout and "bytes.bin" not in found.stdout
-    args = ("reuse", "--input", "условия", "--input", "layout.txt", "--result", "export.bin",
+    args = ("reuse", "--input", "terms-Ω", "--input", "layout.txt", "--result", "export.bin",
             "--record", "export.receipt", "--method", "Export 1.0 A4")
     (cwd / "layout.txt").write_text("A4")
     artifact = cwd / "export.bin"

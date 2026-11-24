@@ -54,7 +54,7 @@ def test_check_without_origin_reports_error(home, target):
         updater = load()
         with patch.object(updater, "skill_root", lambda: target):  # no .git and no configured origin
             cfg = updater.check(force=True)
-        assert "error" in cfg and "источник не настроен" in cfg["error"]
+        assert "error" in cfg and "No update source configured" in cfg["error"]
 
 
 def make_git_skill(target):
@@ -82,7 +82,7 @@ def test_apply_rejects_modified_tracked_files(home, target):
             try:
                 updater.apply_update()
             except ValueError as exc:
-                assert "незафиксированные правки" in str(exc)
+                assert "uncommitted changes" in str(exc)
             else:
                 raise AssertionError("expected ValueError for modified tracked files")
         assert not any("pull" in c for c in calls), "pull must not run on a dirty tree"
@@ -105,7 +105,7 @@ def test_apply_allows_untracked_files(home, target):
              patch.object(updater, "remote_head", lambda origin, branch: "remote-sha"), \
              patch.object(updater, "run_git", fake_run_git):
             message = updater.apply_update()
-        assert "обновлено" in message
+        assert "Updated" in message
 
 
 def test_apply_rolls_back_on_broken_compile(home, target):
@@ -133,7 +133,7 @@ def test_apply_rolls_back_on_broken_compile(home, target):
             try:
                 updater.apply_update()
             except ValueError as exc:
-                assert "не компилируется" in str(exc)
+                assert "does not compile" in str(exc)
             else:
                 raise AssertionError("expected ValueError on broken compile")
         reset = [c for c in calls if "reset" in c and "--hard" in c]
@@ -156,7 +156,7 @@ def test_apply_success_updates_head(home, target):
              patch.object(updater, "remote_head", lambda origin, branch: "remote-sha"), \
              patch.object(updater, "run_git", fake_run_git):
             message = updater.apply_update()
-        assert "обновлено" in message
+        assert "Updated" in message
         cfg = updater.load_config()
         assert cfg["local_head"] == "after" and cfg["before_head"] == "before"
 

@@ -102,7 +102,7 @@ def check_replacement(folder):
     anchors = ["2026-05-03", "case/17"]
     turns = [group(195000, source, anchors=anchors), group(50000, call, answer, keep=True), group(1000, latest)]
     snapshot = {"window_tokens": 1000000, "prefix": group(10000, prefix), "turns": turns}
-    path, note = folder / "история.json", folder / "сводка.json"
+    path, note = folder / "history-Ω.json", folder / "summary-Ω.json"
     def save(p, obj):
         p.write_text(json.dumps(obj, ensure_ascii=False), encoding="utf8")
     def plan():

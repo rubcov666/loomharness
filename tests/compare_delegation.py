@@ -154,8 +154,8 @@ def fixtures(folder, case):
 
 def run(folder, case, arm, rpc):
     task, expected = fixtures(folder, case)
-    mode = {"requested": "Поручи чтение этих данных одному субагенту, затем проверь его ответ.\n",
-            "solo": "Выполни без субагентов.\n"}.get(arm, "")
+    mode = {"requested": "Delegate reading these data to one subagent, then verify its answer.\n",
+            "solo": "Complete the task without subagents.\n"}.get(arm, "")
     prompt = (mode + task + "\nUse fixture_reader.read_fixture for benchmark data "
               "(file, optional literal find, or start and lines for a numbered excerpt). "
               "Return only the requested JSON.")

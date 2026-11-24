@@ -48,7 +48,7 @@ def exercise(root):
                 os.environ.pop("CODEX_THREAD_ID", None)
             return main()
 
-    literal = "текст ' \" $(echo) & | %USERPROFILE%\nline"
+    literal = "text Ω ' \" $(echo) & | %USERPROFILE%\nline"
     assert invoke(steps=[["team", "0", literal], ["team", "37"], ["team", "0", "unused"]]) == 37
     assert invoke("team", "0", "", thread=None) == 0
     assert list(map(json.loads, calls.read_text(encoding="utf8").splitlines())) == [

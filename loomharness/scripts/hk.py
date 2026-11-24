@@ -1,9 +1,9 @@
 """Sibling-module loader with bytecode cache (replaces runpy.run_path chains).
 
-runpy.run_path перекомпилирует модуль из исходника на каждый вызов и не
-использует __pycache__. importlib загружает тот же файл с кэшем байткода.
-Возвращается словарь глобальных имён — как у runpy, поэтому обращения
-вида module["name"] в вызывающем коде сохраняются без изменений.
+runpy.run_path recompiles each source file on every call. importlib loads
+the same file via the bytecode cache.
+Return a dictionary of globals like runpy so callers can keep the existing
+module["name"] interface.
 """
 
 import importlib.util
@@ -16,10 +16,10 @@ _CACHE = {}
 
 
 def kit_home(base=None):
-    """Каталог данных установки: $CODEX_HOME/loomharness (legacy: harness-kit).
+    """Installation data directory under $CODEX_HOME/loomharness.
 
-    Пока существует только прежний каталог harness-kit, продолжаем использовать
-    его — базы выбора проекта и доски команд должны пережить переименование.
+    Continue using the legacy harness-kit directory when it is the only one.
+    This preserves project preferences and team boards after a rename.
     """
     root = Path(base) if base is not None else Path(
         os.environ.get("CODEX_HOME") or Path.home() / ".codex"

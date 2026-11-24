@@ -48,8 +48,8 @@ def temporary_profile():
 
 
 def exercise(base, custom_home, check_registry):
-    home = base / ("Профиль O'Brien $test" if custom_home else "home")
-    project = base / "проект"
+    home = base / ("Profile Ω O'Brien $test" if custom_home else "home")
+    project = base / "project-Ω"
     project.mkdir(parents=True)
     env = dict(os.environ, HOME=str(home), USERPROFILE=str(home), TMPDIR=str(base),
                TMP=str(base), TEMP=str(base), PYTHONIOENCODING="utf-8")
@@ -108,15 +108,15 @@ def exercise(base, custom_home, check_registry):
         return json.loads(result.stdout) if result.stdout.strip() else None
 
     subprocess.run(["git", "init", "-q", "-b", "install-test"], cwd=project, env=env, check=True)
-    question = "Включить хуки LoomHarness для этого проекта?"
+    question = "Enable LoomHarness hooks for this project?"
     assert question in invoke("SessionStart")["hookSpecificOutput"]["additionalContext"]
     assert invoke("Stop", last_assistant_message=question) is None
     assert "Project hooks enabled." in invoke("UserPromptSubmit", prompt="Да")["hookSpecificOutput"]["additionalContext"]
-    (project / "PLAN.md").write_text("Следующий шаг — проверить импорт.", encoding="utf8")
-    assert "1 | Следующий шаг" in invoke("UserPromptSubmit", prompt="Что дальше?")["hookSpecificOutput"]["additionalContext"]
+    (project / "PLAN.md").write_text("Next step: check the import.", encoding="utf8")
+    assert "1 | Next step" in invoke("UserPromptSubmit", prompt="What's next?")["hookSpecificOutput"]["additionalContext"]
     # Run the exact command the enabled hook gives the agent, even in a path
     # with spaces, apostrophes and a dollar sign, without resolving Python on PATH.
-    message = invoke("UserPromptSubmit", prompt="Продолжить", session_id="view-smoke")["hookSpecificOutput"]["additionalContext"]
+    message = invoke("UserPromptSubmit", prompt="Continue", session_id="view-smoke")["hookSpecificOutput"]["additionalContext"]
     prefix = message.splitlines()[-1]
     (project / "sample.json").write_bytes(b'[{"id":7}]')
     shell = [shutil.which("powershell"), "-NoProfile", "-Command"] if os.name == "nt" else ["/bin/sh", "-c"]

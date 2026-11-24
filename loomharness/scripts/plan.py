@@ -135,8 +135,8 @@ _EXCERPT_CACHE = {}
 
 
 def _signature(root, name, suffixes=(".md", ".txt", "")):
-    # Дешёвая сигнатура для кэша: тот же обход пути, что в read_local,
-    # но без чтения содержимого.
+    # Use the same paths as read_local without rereading file contents
+    # when building the cache key.
     if not isinstance(name, str) or not re.fullmatch(r"[\w ./-]{1,200}", name):
         return None
     parts = name.split("/")
@@ -177,7 +177,7 @@ def for_prompt(root, prompt, *, default_docs=DEFAULT_DOCS, budget=2000):
            tuple((name, _signature(root, name)) for name in names), counts_sig,
            emphasis_key, budget)
     if key in _EXCERPT_CACHE:
-        # LRU: переставляем ключ в конец порядка вставки (работает и с plain dict).
+        # Move a hit to the most recent insertion position.
         value = _EXCERPT_CACHE.pop(key)
         _EXCERPT_CACHE[key] = value
         return value
@@ -213,6 +213,6 @@ def for_prompt(root, prompt, *, default_docs=DEFAULT_DOCS, budget=2000):
               "Summarize the facts in the requested reply language.\n\n"
               + "\n\n".join(parts))
     if len(_EXCERPT_CACHE) > 32:
-        _EXCERPT_CACHE.popitem(last=False)  # LRU: вытесняем давно неиспользуемое
+        _EXCERPT_CACHE.popitem(last=False)  # Evict the least recently used entry.
     _EXCERPT_CACHE[key] = result
     return result

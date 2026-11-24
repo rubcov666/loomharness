@@ -79,7 +79,7 @@ except http.client.RemoteDisconnected:
         try:
             send = ("run", "--log", "card.log", "--", sys.executable, client, str(service.server_port))
             summary = invoke(root, "context.py", *send, expected=7)
-            assert "exit=7" in summary and "тестов=" not in summary
+            assert "exit=7" in summary and "tests=" not in summary
             assert "incomplete response" in invoke(root, "view.py", "card.log", "--find", "card-17")
             conn = http.client.HTTPConnection("127.0.0.1", service.server_port, timeout=3)
             try:

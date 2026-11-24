@@ -1,11 +1,11 @@
-# План проекта и повторная компиляция
+# Project plans and repeat compilation
 
-На короткий вопрос «Что дальше?» или «Что уже сделано?» хук читает до пяти планов или сводок в корне включённого проекта. Сначала ищет HANDOFF.md, TASKS.md, PLAN.md, STATUS.md и SESSION.md, затем PLAN.txt, STATUS.txt, План.md, План.txt, Задачи.md и Задачи.txt. Выдержки ограничены по объёму, строки подписаны. Можно указать свои Markdown- и текстовые файлы, таблицу CSV или TSV и файлы учёта состояния в необязательном `.codex/harness-plan.json`.
+For short questions such as “What is next?” or “What is done?”, the hook reads up to five plans or handoffs from an enabled project. It tries HANDOFF.md, TASKS.md, PLAN.md, STATUS.md and SESSION.md, then text variants and supported localized filenames. Customize Markdown, text, CSV/TSV and state paths with an optional `.codex/harness-plan.json`.
 
 ```json
 {
-  "documents": ["HANDOFF.md", "docs/План.txt"],
-  "state_files": ["reports/решения.csv"],
+  "documents": ["HANDOFF.md", "docs/Plan.txt"],
+  "state_files": ["reports/decisions.csv"],
   "counts": {
     "file": "reports/tasks.csv",
     "column": "status",
@@ -14,20 +14,20 @@
 }
 ```
 
-`documents` заменяет стандартный список. Хук читает до пяти локальных документов UTF-8 по 256 КиБ и одну таблицу до 512 КиБ. Для CSV разделителем служит запятая, для TSV — табуляция. Для регионального CSV задайте `"delimiter": ";"` внутри `counts`. Таблица должна иметь заголовок и одинаковое число полей в строках. Сводка показывает число строк, точные совпадения по заданным категориям и число прочих строк. Для облачной таблицы или результата формулы используйте актуальные данные самого приложения.
+`documents` replaces the default list. The hook reads up to five local UTF-8 documents of up to 256 KiB each and one table up to 512 KiB. CSV defaults to comma and TSV to tab. For a regional CSV set `"delimiter": ";"` in `counts`. Require a header and consistent field counts. The summary gives total rows, exact category counts and an other count. Use the native application for live cloud data or formula results.
 
-В `state_files` можно перечислить дополнительные файлы, перед правкой которых через `apply_patch` требуется прочитать доказательство. Указывайте точные пути от корня проекта через `/`. Для облачных карточек и других инструментов проверку ведёт сам Codex по правилам навыка.
+`state_files` lists additional paths that require an evidence read before an `apply_patch` edit. Specify exact project-relative paths with `/`. For cloud records and other tools, the agent follows the skill's verification rules.
 
-## Компиляция
+## Compilation
 
-Для сборки проекта выполняйте его обычную команду со штатными правилами кэширования. Для отдельной компиляции обычных Java-файлов помощник в папке навыка принимает полный список исходников, упорядоченный список зависимостей и версию Java. В `JAVA_HOME` или `--jdk` укажите корень JDK. Например, из папки проекта с тестовым клиентом на Java 21 выполните следующую команду, подставив абсолютный путь к установленному скрипту и пути проекта.
+Use the project's ordinary build and cache rules. For standalone Java sources, the skill helper takes a complete source list, ordered dependencies and the Java version. Set `JAVA_HOME` or `--jdk` to the JDK root. For example, in a Java 21 test client project, substitute the installed script and project paths in the following command.
 
 ```sh
 python /path/to/loomharness/scripts/javac_cache.py --cache-dir .cache/javac --release 21 --jar lib/format.jar src/ReportExport.java
 ```
 
-На macOS и Linux вместо `python` можно использовать `python3`. Для каждого дополнительного JAR повторите `--jar`. При успехе stdout содержит полный путь к каталогу классов. Используйте его в classpath следующего запуска. Компиляция использует UTF-8, отключает обработчики аннотаций и не подхватывает соседние исходники. Для модулей, генерации кода, нестандартных флагов и неявных зависимостей используйте исходную команду проекта.
+Use `python3` on macOS or Linux. Repeat `--jar` for each JAR. On success stdout gives the absolute class directory for the next classpath. Compilation uses UTF-8, disables annotation processors and excludes implicit sources. For modules, code generation, special flags or implicit dependencies, use the original build command.
 
-Помощник заново вычисляет хеши исходников, JAR и компонентов компилятора, проверяет список и содержимое сохранённых классов. Диагностика javac выводится в stderr. После предупреждений при следующем обращении компиляция повторится. Успешный код компиляции подтверждает получение классов. Тест запускайте на полученном каталоге, затем проверьте заявленный пользовательский результат. Если каталог кэша больше не используется, его можно удалить.
+The helper hashes sources, JARs and compiler components and verifies the cached class list and contents. Javac diagnostics go to stderr. Warnings cause recompilation on the next call. Successful compilation confirms the classes exist. Run the test against that directory and check the claimed user result. Unused cache directories can be removed.
 
-Для подключения к существующему сценарию сборки добавьте `--path-file` с путём к новому файлу в рабочем каталоге этого запуска. После кода 0 прочтите из файла путь в UTF-8 и используйте его в classpath. Код 65 означает ошибку компилятора. При недоступном кэше или неподдерживаемых входах вызовите исходную команду компиляции. Этот режим также проверяет JAR на встроенные исходники и обработчики аннотаций, которым нужны штатные параметры javac.
+For an existing build script, pass `--path-file` pointing to a fresh file for this run. After exit 0, read the UTF-8 path and use it in the classpath. Exit 65 indicates a compiler error. Fall back to the original compiler command for unavailable caches or unsupported inputs. This mode also checks JARs for embedded sources and annotation processors that need the project's usual javac settings.

@@ -5,7 +5,7 @@ description: Manage multi-step work in CLI and MCP clients. Use for task intake,
 
 # LoomHarness
 
-Answer short questions directly. Write all user-facing messages in the language of the user's request, unless they ask for another language. For code, a skill invocation, or a brief acknowledgment alone, keep the conversation language. Preserve identifiers and quoted text.
+Answer short questions directly. Write reusable prompts, hook guidance, task briefs and handoff instructions in English. Write user-facing messages in the language of the user's request unless they ask for another language. For code, a skill invocation, or a brief acknowledgment alone, keep the conversation language. Preserve identifiers and quoted text.
 
 **Start.** Establish the goal, inputs, acceptance criteria, authorized external actions, and stopping conditions. Ask only what changes the decision. Resume from the saved plan and recent hook evidence. Record the version, date, and reason for plan changes. A chat note suffices for read-only work.
 

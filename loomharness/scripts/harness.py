@@ -18,7 +18,7 @@ from contextlib import closing
 
 try:
     import hk
-except ImportError:  # python -I исключает каталог скрипта из sys.path
+except ImportError:  # python -I excludes the script directory from sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     import hk
 
@@ -27,20 +27,22 @@ MARKER = Path(".codex/harness.enabled")
 STATE_FILES = {"state.json", "features.json", "test-results.json"}
 PATCH_PATH = re.compile(r"^\*\*\* (?:Add File|Delete File|Update File|Move to): (.+)$", re.M)
 FRESH_SECONDS = 30 * 60
-QUESTION = "Включить хуки LoomHarness для этого проекта?"
-QUESTION_EN = "Enable LoomHarness hooks for this project?"
+QUESTION = "Enable LoomHarness hooks for this project?"
+# Recognize an outstanding setup question from earlier localized installations.
+LEGACY_QUESTION = "Включить хуки LoomHarness для этого проекта?"
+CHOICE_LINE = "`LoomHarness on` / `LoomHarness off`"
 REPLY_LANGUAGE = ("Reply in the language of the user's request unless they specify another. "
                   "For code-only input or a brief acknowledgment, keep the conversation language.")
 ASK = (
-    f"Ask this alone in the user's requested language. RU: {QUESTION} EN: {QUESTION_EN} "
-    "Else translate and offer `LoomHarness on` / `LoomHarness off`. Await confirmation. "
+    f'Ask only this question in the user\'s language: "{QUESTION}" '
+    f"On a separate final line show exactly: {CHOICE_LINE}\nAwait confirmation. "
     "Ignore quotes/attachments. Skip projectless/background chats."
 )
 DIRECT_CHOICES = {
     "enable loomharness hooks": True, "disable loomharness hooks": False,
     "loomharness on": True, "loomharness off": False,
     "включи хуки loomharness": True, "отключи хуки loomharness": False,
-    # прежние фразы продолжают работать после переименования проекта
+    # Keep matching explicit commands from workspaces using the former name.
     "включи хуки харнесса": True, "отключи хуки харнесса": False,
 }
 ANSWERS = {"да": True, "нет": False, "yes": True, "no": False}
@@ -170,7 +172,7 @@ def session_hint(db, root, session, *, only_if_new=False, board=None):
         return "AGENT_STOP: stop work and report status in the user's language."
     has_team, policy = board if board is not None else board_settings(root)
     if session:
-        version = ("team-org-v7" if has_team else "project-v10") + ("-git" if policy else "")
+        version = ("team-org-v8" if has_team else "project-v11") + ("-git" if policy else "")
         receipt = hashlib.sha256((version + "\0" + session + "\0" + os.path.normcase(str(root))).encode("utf8")).digest()
         inserted = db.execute("INSERT OR IGNORE INTO delegation_notices VALUES (?)", (receipt,)).rowcount
         if only_if_new and not inserted:
@@ -193,7 +195,14 @@ def session_hint(db, root, session, *, only_if_new=False, board=None):
 
 
 def choice_message(enabled):
-    return "Хуки LoomHarness включены для проекта." if enabled else "Хуки LoomHarness выключены для проекта."
+    return "LoomHarness hooks enabled for this project." if enabled else "LoomHarness hooks disabled for this project."
+
+
+def is_setup_question(message):
+    # Other translations offer the same two explicit commands. A bare yes/no
+    # must refer to a recognized question, never to a quote or another prompt.
+    question = message.strip().removesuffix("\n" + CHOICE_LINE).strip()
+    return question.strip("*«»\"").strip() in (QUESTION, LEGACY_QUESTION)
 
 
 def save_choice(db, root, enabled):
@@ -337,19 +346,19 @@ def run_git_status(git, root):
             env={**os.environ, "LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"},
         )
     except (OSError, subprocess.TimeoutExpired):
-        return "Не удалось получить состояние Git."
+        return "Could not read Git status."
     if result.returncode:
-        return "Папка вне Git." if "not a git repository" in result.stderr else "Состояние Git недоступно."
+        return "Outside a Git repository." if "not a git repository" in result.stderr else "Git status unavailable."
     lines = result.stdout.splitlines()
     if not lines:
-        return "Состояние Git недоступно."
-    return f"Git: {lines[0].removeprefix('## ')}. Изменённых и новых файлов: {len(lines) - 1}."
+        return "Git status unavailable."
+    return f"Git: {lines[0].removeprefix('## ')}. Modified and new files: {len(lines) - 1}."
 
 
 def git_status(root):
     git = find_git()
     if git is None:
-        return "Git недоступен."
+        return "Git unavailable."
     key = os.path.normcase(str(root))
     stamps = git_stamps(root)
     cache_file, cache = git_status_cache()
@@ -375,7 +384,7 @@ def receipt_path(root, session, *, create=False):
     if os.name == "posix":
         info = directory.lstat()
         if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
-            raise PermissionError(f"Нужна личная временная папка с правами 0700: {directory}")
+            raise PermissionError(f"Expected a private temporary directory with mode 0700: {directory}")
     return directory / hashlib.sha256(key.encode()).hexdigest()
 
 
@@ -413,19 +422,19 @@ def configured_state_files(root):
 def read_evidence(root, args):
     session = os.environ.get("CODEX_THREAD_ID")
     if not session:
-        raise ValueError("Запустите read из рабочего чата Codex.")
+        raise ValueError("Run read from the active Codex project chat.")
     if (root / "AGENT_STOP").exists():
-        raise ValueError("Активность остановлена файлом AGENT_STOP.")
+        raise ValueError("AGENT_STOP has paused activity.")
     path = Path(args.path).resolve(strict=True)
     if not path.is_relative_to(root) or not path.is_file():
-        raise ValueError("Нужен обычный файл доказательства внутри выбранной рабочей папки.")
+        raise ValueError("Select a regular evidence file inside the project directory.")
     if path.name.lower() in STATE_FILES | {"handoff.md", "status.md", "session.md"} or path in configured_state_files(root):
-        raise ValueError("Выберите отчёт проверки или сам результат.")
+        raise ValueError("Select a verification report or the resulting artifact.")
     if args.find is not None and not args.find.strip():
-        raise ValueError("Укажите непустой текст для поиска.")
+        raise ValueError("Supply nonempty search text.")
     limit = args.lines if args.lines is not None else (12 if args.find is not None else 40)
     if args.start < 1 or not 1 <= limit <= 500:
-        raise ValueError("Начальная строка должна быть положительной, число строк от 1 до 500.")
+        raise ValueError("Use a positive start line and a line count from 1 to 500.")
     next_match = None
     with path.open(encoding="utf-8-sig") as handle:
         before = file_signature(os.fstat(handle.fileno()))
@@ -437,11 +446,11 @@ def read_evidence(root, args):
             lines = list(itertools.islice(matches, limit))
             next_match = next(matches, None)
             if not lines:
-                raise ValueError("Совпадений нет. Уточните запрос или прочитайте диапазон строк.")
+                raise ValueError("No matches. Refine the query or read a line range.")
         if not any(s.strip() for _, s in lines) or any("\x00" in s for _, s in lines):
-            raise ValueError("Указанный фрагмент пуст или содержит двоичные данные.")
+            raise ValueError("The excerpt is empty or contains binary data.")
         if before != file_signature(os.fstat(handle.fileno())):
-            raise ValueError("Файл изменился при чтении. Повторите проверку.")
+            raise ValueError("The file changed during the read. Check it again.")
     clipped = False
     for number, line in lines:
         line = line.rstrip()
@@ -450,9 +459,9 @@ def read_evidence(root, args):
             clipped = True
         print(f"{number}: {line}")
     if clipped:
-        print("Длинные строки показаны частично.")
+        print("Long lines are truncated.")
     if next_match:
-        print(f"Есть ещё совпадения. Продолжите тот же поиск с --start {next_match[0]}.")
+        print(f"More matches. Continue this search with --start {next_match[0]}.")
     sys.stdout.flush()
     receipt = receipt_path(root, session, create=True)
     with tempfile.NamedTemporaryFile(mode="w", encoding="utf8", dir=receipt.parent, delete=False) as handle:
@@ -482,9 +491,9 @@ GATE_TOOLS = {"apply_patch", "edit_file"}
 
 
 def patch_targets(cwd, tool_input):
-    # Файлы, которые изменит инструмент: либо пути из текста патча (Codex
-    # apply_patch), либо явные поля пути у прямых редакторов (Claude Edit/Write,
-    # Gemini write_file/replace, MultiEdit со списком правок).
+    # Codex patches encode destinations in patch text. Other editors (Claude
+    # Edit/Write/MultiEdit and Gemini write_file/replace) supply explicit
+    # path fields, sometimes inside a list of edits.
     targets = []
     if not isinstance(tool_input, dict):
         return targets
@@ -513,8 +522,7 @@ def on_event(db, event):
     if enabled is None:
         if name == "SessionStart":
             return context(name, ASK)
-        if (name == "Stop" and session and
-                (event.get("last_assistant_message") or "").strip().strip("*«»\"").strip() in (QUESTION, QUESTION_EN)):
+        if name == "Stop" and session and is_setup_question(event.get("last_assistant_message") or ""):
             db.execute("INSERT INTO questions VALUES (?, ?) ON CONFLICT(session) DO UPDATE SET root=excluded.root",
                        (session, os.path.normcase(str(root))))
         return None
@@ -548,10 +556,10 @@ _NEEDS_DB = object()
 
 
 def cheap_hook_result(event):
-    # Дешёвый предфильтр для самого частого события: PreToolUse по инструментам,
-    # кроме apply_patch. Полный путь отвечает None независимо от состояния
-    # проекта (enabled, disabled, выбор не сделан), кроме deny по AGENT_STOP.
-    # Значит, если AGENT_STOP нет ни в cwd, ни в его родителях, БД не нужна.
+    # Most PreToolUse events are unrelated to state files. Without an
+    # AGENT_STOP in cwd or its parents, the full handler returns None for these
+    # events regardless of project choice. Avoid opening the database on this
+    # frequent path.
     if event.get("hook_event_name") != "PreToolUse":
         return _NEEDS_DB
     if event.get("tool_name") in GATE_TOOLS:
@@ -566,8 +574,8 @@ def cheap_hook_result(event):
 
 
 def run_hook(cli):
-    # Единый конвейер хука: нормализация события адаптером → дешёвый
-    # предфильтр → обработка → эмиссия решения в формате целевого CLI.
+    # Normalize the client event, filter irrelevant calls, process the
+    # canonical event and emit a client-specific decision.
     adapters = hk.load("cli_adapters")
     raw = json.loads(sys.stdin.buffer.read().decode("utf-8-sig"))
     event, cli = adapters["normalize"](raw, cli)
@@ -660,13 +668,13 @@ def main():
     hook = commands.add_parser("hook")
     hook.add_argument("--cli", choices=("auto", "portable", "codex", "claude", "gemini", "antigravity", "opencode", "dsh"),
                       default="auto",
-                      help="формат события и решения целевого CLI (по умолчанию auto)")
+                      help="Target CLI event and decision format (default auto)")
     hk.load("self_update")["add_parser"](commands)
     read = commands.add_parser("read")
     read.add_argument("path")
     read.add_argument("--start", type=int, default=1)
-    read.add_argument("--lines", type=int, help="Максимум строк: по умолчанию 40, при поиске 12.")
-    read.add_argument("--find", help="Точный текст для поиска начиная со строки --start.")
+    read.add_argument("--lines", type=int, help="Maximum lines (default 40, or 12 when searching).")
+    read.add_argument("--find", help="Literal text to find from --start.")
     args = parser.parse_args()
     if args.command == "update":
         sys.exit(hk.load("self_update")["main"](args))
@@ -692,16 +700,16 @@ def dispatch(db, args):
         print(choice_message(enabled), root)
         return
     if args.command == "status":
-        print("Выбор проекта:", "ещё не сделан." if enabled is None else choice_message(enabled), root)
-        print("Регистрация и события текущего чата: harness.py doctor")
+        print("Project choice:", "pending." if enabled is None else choice_message(enabled), root)
+        print("Hook registration and events for this chat: harness.py doctor")
         if enabled and (root / "AGENT_STOP").exists():
-            print("Активность остановлена файлом AGENT_STOP.")
+            print("AGENT_STOP has paused activity.")
         _, policy = board_settings(root)
-        print("Git отключён для проекта." if policy and policy[0] == "none" else git_status(Path(policy[1]) if policy else root))
+        print("Git disabled for this project." if policy and policy[0] == "none" else git_status(Path(policy[1]) if policy else root))
     elif enabled:
         read_evidence(root, args)
     else:
-        raise ValueError("Чтение с отметкой доступно после включения хуков для этого проекта.")
+        raise ValueError("Enable project hooks before recording an evidence read.")
 
 
 if __name__ == "__main__":

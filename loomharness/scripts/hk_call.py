@@ -1,6 +1,6 @@
 """Tiny client for team.py serve: minimal imports for fast one-shot calls.
 
-Usage: python hk_call.py --project ПУТЬ [--actor THREAD] КОМАНДА [АРГУМЕНТЫ...]
+Usage: python hk_call.py --project PATH [--actor THREAD] COMMAND [ARGS...]
 Requires a running serve process (python team.py serve).
 """
 

@@ -1,8 +1,8 @@
-# Порядок исполнителя
+# Worker procedure
 
-Краткий порядок для чата исполнителя. Полные правила — в [team.md](team.md), роли и очередь — в [organization.md](organization.md).
+Quick reference for the assigned worker. [Team workflow](team.md) · [Roles and queue](organization.md)
 
-1. Перед началом работы выполни `team.py --project "корень проекта" claim ID БИЛЕТ` из своего чата. Если claim отклонён, заверши ход без изменений.
-2. Возьми только свою карточку. Работай в согласованных границах; при нехватке исходных данных или пересечении с соседней работой согласуй границы через координатора.
-3. Сохрани результат в согласованном месте и вызови `submit ID БИЛЕТ "результат, ссылка или путь, проверка и её исход"`. Передай версию через `--revision ХЕШ` и при необходимости неизменяемый снимок через `--artifact относительный/путь`.
-4. При препятствии выполни доступную часть и заверши ход сообщением координатору: причина, что уже проверено, какое решение нужно. Самоприёмка и дальнейшее делегирование в роль не входят; вопросы владельцу задаёт координатор.
+1. Before making changes, run `team.py --project "PROJECT_ROOT" claim ID TICKET` from the assigned chat. If the claim is rejected, end the turn without editing.
+2. Work only on the claimed card within its agreed scope. Resolve missing inputs or overlapping work through the coordinator.
+3. Save the result in its agreed location and run `submit ID TICKET "result, link or path, check and outcome"`. Supply `--revision HASH` and, when needed, an immutable snapshot via `--artifact relative/path`.
+4. For a blocker complete the available work and report the cause, what you checked and the decision needed to the coordinator. The coordinator asks the owner. Independent acceptance and further delegation belong to other roles.

@@ -249,7 +249,7 @@ if __name__ == "__main__":
         isolated.mkdir()
         handoff_usage(isolated / "project")
         continuing_role(base / "catalog-project")
-        role_project(base / "Каталог проба")
+        role_project(base / "Sample workspace Ω")
         bulk_plan(base / "bulk")
         for mode in ("tasks", "pipeline"):
             other_modes(base / mode, mode)

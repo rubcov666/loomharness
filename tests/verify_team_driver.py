@@ -44,7 +44,7 @@ def team(env, project, actor, *args, ok=True):
 
 
 def fake_cli(binary, body):
-    """Исполняемый фейк-CLI: .cmd для Windows, shebang-скрипт для posix."""
+    """Create an executable fixture CLI with a Windows shim or POSIX shebang."""
     script = binary.with_suffix(".py")
     script.write_text(body, encoding="utf8")
     if os.name == "nt":
@@ -68,22 +68,22 @@ with tempfile.TemporaryDirectory() as folder:
     task_id = team(env, root, "lead", "add", "--role", "dev", "--title", "Fix import",
                    "--scope", "a.txt", "--criterion", "tests pass", "--hours", "0.5")["id"]
 
-    # драйвер по умолчанию — desktop; установка и сброс
+    # Desktop is the default driver. Exercise selecting and resetting it.
     assert team(env, root, "lead", "driver", "show")["driver"] == "desktop"
     assert team(env, root, "lead", "driver", "set", "claude")["driver"] == "claude"
     assert team(env, root, "lead", "driver", "show")["driver"] == "claude"
     assert team(env, root, "lead", "driver", "set", "desktop")["driver"] == "desktop"
 
-    # dispatch с драйвером, но без CLI в PATH — понятная ошибка, доска цела
+    # A missing executable must give an actionable error and leave the board intact.
     empty_bin = base / "empty-bin"
     empty_bin.mkdir()
     env_no_cli = dict(env, PATH=str(empty_bin) + os.pathsep + str(base / "no-python"))
     message = team(env_no_cli, root, "lead", "driver", "set", "claude")
     message = team(env_no_cli, root, "lead", "dispatch", task_id, ok=False)
-    assert "не найден в PATH" in message
+    assert "not found on PATH" in message
     team(env_no_cli, root, "lead", "driver", "set", "desktop")
 
-    # фейковые claude/gemini; dispatch возвращает run_command с полным argv
+    # Fixture drivers expose full command arguments through dispatch.
     fake_bin = base / "bin"
     fake_bin.mkdir()
     fake_cli(fake_bin / "claude", FAKE_CLAUDE)
@@ -99,7 +99,7 @@ with tempfile.TemporaryDirectory() as folder:
     assert cmd[cmd.index("--task") + 1] == str(task_id)
     assert cmd[cmd.index("--project") + 1] == str(root)
 
-    # запуск драйвера: usage из JSON, лог содержит промпт с карточкой
+    # The driver reads JSON usage and records the card prompt in the log.
     proc = subprocess.run(cmd, capture_output=True, encoding="utf8", env=env_cli, timeout=60)
     assert proc.returncode == 0, proc.stderr
     report = json.loads(proc.stdout)
@@ -110,13 +110,13 @@ with tempfile.TemporaryDirectory() as folder:
     assert "User-facing output language: ru." in text
     assert (root / ".loomharness" / "runs").is_dir()
 
-    # неверный билет отклоняется; первая карточка освобождается для второго прогона
+    # Reject a bad ticket and release the first card for the second run.
     err = driver(env_cli, "run", "--cli", "claude", "--project", str(root),
                  "--task", str(task_id), "--ticket", "wrong", ok=False)
     assert "invalid dispatch ticket" in err
     team(env_cli, root, "lead", "release", task_id, "driver run verified")
 
-    # gemini-драйвер парсит stats (отдельная карточка: выданную выдать нельзя)
+    # The Gemini driver parses stats on a separately dispatched card.
     task2 = team(env_cli, root, "lead", "add", "--role", "qa", "--title", "Fix export",
                  "--scope", "b.txt", "--criterion", "export works", "--hours", "0.5")["id"]
     team(env_cli, root, "lead", "driver", "set", "gemini")
@@ -127,7 +127,7 @@ with tempfile.TemporaryDirectory() as folder:
     assert report["ok"] and report["usage"]["stats"]["prompt_tokens"] == 7
     team(env_cli, root, "lead", "release", task2, "gemini driver run verified")
 
-    # детектор моделей: claude найден, кандидаты-алиасы на месте; --apply пишет конфиг
+    # Discover Claude aliases and persist the routine model with --apply.
     models = driver(env_cli, "models", "--project", str(root))
     assert models["claude"]["present"] and "sonnet" in models["claude"]["models"]
     assert models["gemini"]["present"]
@@ -135,23 +135,23 @@ with tempfile.TemporaryDirectory() as folder:
     saved = json.loads((root / ".codex" / "harness-models.json").read_text(encoding="utf8"))
     assert saved == {"routine": "m1-fast"}
     err = driver(env_cli, "models", "--project", str(root), "--apply", "--routine", "bad name!", ok=False)
-    assert "укажите --routine" in err
+    assert "Supply --routine" in err
 
-    # возврат в desktop не ломает обычный dispatch
+    # Switching to Desktop restores normal dispatch.
     team(env_cli, root, "lead", "driver", "set", "desktop")
     result = team(env_cli, root, "lead", "dispatch", task_id, "--reply-language", "fr")
     assert result["operation"] == "create_thread", result
     assert result["brief"]["reply_language"] == "fr"
 
-    # таймаут убивает дерево процессов: внук спит дольше таймаута
+    # A grandchild outlives the timeout unless the full process tree is killed.
     err = driver(env_cli, "run", "--cli", "claude", "--project", str(root),
                  "--task", str(task_id), "--ticket", "x", "--timeout", "1", ok=False)
-    assert "invalid dispatch ticket" in err  # билет неверен, доска защищает раньше запуска
+    assert "invalid dispatch ticket" in err  # The board rejects it before launch.
     team(env_cli, root, "lead", "release", task_id, "round 2")
     team(env_cli, root, "lead", "driver", "set", "claude")
     cmd = [str(c) for c in team(env_cli, root, "lead", "dispatch", task_id)["command"]]
     cmd += ["--timeout", "1"]
-    # подменяем бинарь на sleepy через PATH-порядок: временный каталог выше
+    # Put the slow executable first on PATH for this timeout case.
     sleepy_bin = base / "sleepy-bin"
     sleepy_bin.mkdir()
     fake_cli(sleepy_bin / "claude", "import subprocess, sys, time\n"

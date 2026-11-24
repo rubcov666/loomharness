@@ -198,9 +198,9 @@ def observe(path, root, args, actor, plan, initiative, flow, show_card):
                         actionable = ((args.reviews and (state["reviews"] or state["paused"] or stopped))
                                       or (args.next and state["action"] != "wait"))
                         if args.after is None and baseline is None and args.wait > 0 and not actionable:
-                            # Ожидание без курсора: первый снимок становится
-                            # базовой линией, возвращаем только последующие
-                            # изменения. Курсор базовой линии отдаём по таймауту.
+                            # Without a cursor, take the initial snapshot as the
+                            # baseline. Return subsequent changes or the baseline
+                            # cursor on timeout.
                             baseline = cursor
                             update = None
                         else:

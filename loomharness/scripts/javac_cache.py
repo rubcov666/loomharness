@@ -65,8 +65,8 @@ def inputs(paths, suffix):
     for path in paths:
         if path.suffix != suffix or not path.is_file() or path.name == "module-info.java":
             raise ValueError(f"Requires explicit ordinary {suffix} files: {path}")
-        # Исходники — полный дайджест; толстые JAR — дешёвый stamp (size+mtime),
-        # тот же приём, что и для lib/modules toolchain.
+        # Hash source contents. Large JARs use size and mtime, as do the
+        # toolchain's lib/modules files.
         full = suffix == ".java"
         result.append((path.name, digest(path) if full else stamp(path), full))
     return result
