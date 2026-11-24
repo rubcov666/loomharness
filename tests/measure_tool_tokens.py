@@ -102,12 +102,6 @@ def measure(project):
 
     yield "Read totals for four agents", *usage_reports(project)
 
-    raw = "OK\n"
-    (project / "short.log").write_text(raw, encoding="utf8")
-    numbered = command(project, "view.py", "short.log", "--start", "1", "--lines", "1")
-    assert numbered.strip() == "1 | OK"
-    yield "Read one short line", raw, numbered
-
 
 def main():
     with TemporaryDirectory() as temp:

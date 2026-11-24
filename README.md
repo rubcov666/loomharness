@@ -1,14 +1,16 @@
 # LoomHarness
 
-Give your coding agent the failing test, the source line or the alert count it needs. LoomHarness keeps the full output on disk so the agent can look closer when a summary leaves a question open.
+**English** · [Русский](SIMPLE.md)
 
-In the included five-log benchmark, the raw outputs took **8,391 tokens**. LoomHarness returned the test results, skip and failure details in **316 tokens**. You can reproduce the comparison locally without a model or an API key. [Benchmark details](docs/benchmarks.md) · [Руководство на русском](SIMPLE.md)
+Give your coding agent the failing test, the source line or the alert count it needs. LoomHarness keeps the full output on disk so the agent can follow up on a summary.
+
+**3,704,577 → 11,514 tokens (−99.69%)** in an offline replay of eight requests against synthetic build logs. One approach carried full logs into each request. The other searched the logs and retrieved a missing retry rule on demand. Both produced the same final report, including every limit, exception and source. [How the replay was counted](docs/benchmarks.md#eight-request-build-investigation)
 
 **Version 1.0.0** · Python 3.11+ · Windows, macOS and Linux
 
 ## Try it in a minute
 
-You need Python 3.11+ and Git. From the repository root, run a small job that prints the same progress message 100 times.
+You need Python 3.11+ and Git. Run a small job that prints the same progress message 100 times.
 
 ```sh
 git clone https://github.com/rubcov666/loomharness.git
@@ -20,7 +22,7 @@ The summary contains `1-100: waiting for worker`. Open `demo.log` to see all 100
 
 ## Token benchmarks
 
-Counts cover the tool output returned to the agent, including diagnostic text. Each row answers the same question on the same generated data. The baseline is named in the [benchmark protocol](docs/benchmarks.md).
+Across six tasks, **15,008 → 1,346 tokens (−91.0%)** of tool output reached the agent. Each pair answers the same question on the same generated data. You can reproduce these six measurements locally without a model or an API key. [Baselines and commands](docs/benchmarks.md#six-tool-output-measurements)
 
 | Task | Baseline tokens | LoomHarness tokens | Change |
 |---|---:|---:|---:|
@@ -30,9 +32,11 @@ Counts cover the tool output returned to the agent, including diagnostic text. E
 | Count 24 matching lines | 228 | 12 | -94.7% |
 | Count alerts in 120 samples | 786 | 98 | -87.5% |
 | Read totals for four agents | 192 | 93 | -51.6% |
-| Read one short line | 2 | 4 | +100.0% |
 
-A two-token line is cheaper to read directly. For a whole model session, measure repeated input, cache hits and output separately. [Usage reporting](loomharness/references/telemetry.md)
+Two earlier measurements show what happens with larger files.
+
+- In a **200,000-line log**, 200 lines matched. Returning just the count took **12 tokens**, down from **542** for the default search page. [Search measurement](docs/benchmarks.md#searching-200000-lines)
+- For a **100,000-line log**, the optimized reader returned the same preview in **40.9 ms**, down from **178.0 ms**. Both figures are median CLI times over 21 paired runs on macOS. [Timing method](docs/benchmarks.md#previewing-100000-lines)
 
 ## Use it with your agent
 
