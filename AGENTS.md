@@ -10,3 +10,7 @@ Use `loomharness/VERSION` as the source of truth. Update the version shown in `R
 ## Verification
 
 Run checks on the local computer with `python -X utf8 tests/verify_local.py`. It uses Python and Git, checks native Codex registration when the CLI is installed, and reports skipped Node.js or JDK checks. Keep hosted runners and model requests out of automatic verification. Use the saved benchmark counters for token and cost reports.
+
+## Pull requests
+
+As part of completing a requested LoomHarness change, merge your pull request into `main` after the relevant local checks pass. The owner has authorized routine merges in this repository. Reuse the temporary branch, merge the verified head, and confirm the result on GitHub.
