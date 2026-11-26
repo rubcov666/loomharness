@@ -39,6 +39,8 @@ jobs:
         run: python -X utf8 tests/verify_history.py
       - name: Check automatic report selection and diagnostic preservation
         run: python -X utf8 tests/verify_views.py
+      - name: Check portable record filters, evidence and MCP
+        run: python -X utf8 tests/verify_records.py
       - name: Check plan questions and fresh evidence
         run: python -X utf8 tests/verify_plan.py
       - name: Check role ownership, dispatch, review and team usage
@@ -49,6 +51,8 @@ jobs:
         run: python -X utf8 tests/verify_initiative.py
       - name: Check coordinator updates, model routing and metric windows
         run: python -X utf8 tests/verify_efficiency.py
+      - name: Check first team model choices and saved routing
+        run: python -X utf8 tests/verify_model_choice.py
       - name: Check partial snapshots, resource conflicts and concurrent reporting
         run: python -X utf8 tests/verify_board_optimizations.py
       - name: Check background review, model qualification and revocation

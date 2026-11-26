@@ -17,6 +17,7 @@ except ImportError:  # python -I excludes the script directory from sys.path
 
 queue = hk.load("review_queue")
 models = hk.load("team_models")
+model_policy = hk.load("model_policy")
 
 STAGES = {"review": "service/review", "delivery": "service/delivery"}
 REVIEW_POOL = 2
@@ -307,9 +308,10 @@ def assign(db, p, root, a):
     if ref:
         brief["revision"] = ref
     strong = kind == "review" or (action == "publish" and effects != "handoff")
+    model, thinking = model_policy["assignment"](db,p,"reviewer" if strong else "worker")
     return {"operation": "send_message_to_thread" if owner else "create_thread",
-            "threadId": owner[0] if owner else None, "model": p["strong_model" if strong else "simple_model"],
-            "thinking": "medium" if strong else "low", "brief": brief}
+            "threadId": owner[0] if owner else None, "model": model,
+            "thinking": thinking, "brief": brief}
 
 
 def record_verdicts(db, root, job, a):
@@ -381,7 +383,7 @@ def service(db, p, root, a, actor):
         return job_info(db, job, lead)
     if a.cmd == "review-side":
         check(lead and job["kind"]=="review" and job["state"]=="active","active review and coordinator required")
-        return queue["side"](db,p,a)
+        return queue["side"](db,a,*model_policy["assignment"](db,p,"reviewer"))
     if a.cmd == "job-cancel":
         check(lead and job["state"] in ("offered","active"), "only the coordinator can reconcile an outstanding job")
         run = queue["current"](db,a.id)

@@ -18,6 +18,20 @@ Use compact reads, local metrics and context budgeting in MCP-capable agents. Li
 
 Codex Desktop and Claude Desktop Code use the same local command-hook settings as their CLIs. One installation serves both. [Codex hooks](https://developers.openai.com/codex/hooks) · [Claude Code hooks](https://code.claude.com/docs/en/hooks) · [Antigravity hooks](https://antigravity.google/docs/hooks)
 
+## Team setup questions
+
+The [model questionnaire](../loomharness/references/adaptive-team.md#first-team-model-choice) returns the same presets, role questions and confirmation as JSON for desktop and CLI hosts with access to the local board command. Use the native form when the current host exposes it.
+
+| Client | Native input, when exposed in the session |
+|---|---|
+| Codex | User-input dialog. [App Server](https://learn.chatgpt.com/docs/app-server) |
+| Claude Code | `AskUserQuestion` with selectable choices and an Other field. [Tool reference](https://code.claude.com/docs/en/tools-reference#askuserquestion-tool-behavior) |
+| Gemini CLI | `ask_user`. Follow the current limits on options and offer text entry for additional IDs. [Tool reference](https://geminicli.com/docs/tools/ask-user/) |
+| OpenCode | `question` on clients that support its form. [Tool reference](https://opencode.ai/docs/tools/) |
+| Other clients | Use a native form when available. Otherwise ask through ordinary chat or use `model-choice --interactive` in a terminal. |
+
+Headless callers receive a prompt or confirmation in JSON and resume after collecting the answer. An MCP-only chat without a path to the local board command can use the standalone terminal flow. Native question rendering does not determine whether a client can apply a model to a separate worker session.
+
 ## Long sessions
 
 For native compaction in Codex, Claude Code or Gemini CLI, an MCP budget decision or rebuilding history in a custom client, see [history compaction](../loomharness/references/history.md). The basic adapter needs the active model's window and input size.

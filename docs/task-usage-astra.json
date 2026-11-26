@@ -1,0 +1,51 @@
+{
+  "codex": "codex-cli 0.171.0-alpha.13.2",
+  "model": "gpt-6.2-astra",
+  "effort": "low",
+  "runs": [
+    {
+      "task": "build_task",
+      "pair": 1,
+      "mode": "without",
+      "input_tokens": 44179,
+      "cached_input_tokens": 14080,
+      "output_tokens": 45,
+      "total_tokens": 44224,
+      "seconds": 6.81,
+      "accepted": true
+    },
+    {
+      "task": "build_task",
+      "pair": 1,
+      "mode": "with",
+      "input_tokens": 17624,
+      "cached_input_tokens": 14080,
+      "output_tokens": 45,
+      "total_tokens": 17669,
+      "seconds": 9.28,
+      "accepted": true
+    },
+    {
+      "task": "ledger_task",
+      "pair": 1,
+      "mode": "with",
+      "input_tokens": 17485,
+      "cached_input_tokens": 16640,
+      "output_tokens": 22,
+      "total_tokens": 17507,
+      "seconds": 8.26,
+      "accepted": true
+    },
+    {
+      "task": "ledger_task",
+      "pair": 1,
+      "mode": "without",
+      "input_tokens": 30823,
+      "cached_input_tokens": 14080,
+      "output_tokens": 44,
+      "total_tokens": 30867,
+      "seconds": 8.87,
+      "accepted": true
+    }
+  ]
+}

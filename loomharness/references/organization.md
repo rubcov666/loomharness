@@ -6,7 +6,7 @@ Start from the project's goals, materials and tasks. Areas can include research,
 
 At initial planning ask about Git only if the choice is unknown. Save `--git none` for work without a repository. For an existing checkout use `--git existing` and optionally `--git-dir`. Creating a repository requires its own authorization. Clarify the delivery destination when it affects the next release, such as a folder, data store or application environment.
 
-The main chat runs `team.py intake` and, for a fresh board, `init --mode roles` with a goal and two available models. Configure it with `team.py organize owners.json --slots 2 --git none` using the user's actual Git choice. The JSON object maps area names to short ownership scopes. Use `organize -` for stdin. Update roles between assignments and keep existing area names. Two slots are a starting point for independent work. Review and delivery use separate slots.
+The main chat runs `team.py intake`. For a fresh board, complete the [model questionnaire](adaptive-team.md#first-team-model-choice), then run `init --mode roles` with the goal. Configure it with `team.py organize owners.json --slots 2 --git none` using the user's actual Git choice. The JSON object maps area names to short ownership scopes. Use `organize -` for stdin. Update roles between assignments and keep existing area names. Two slots are a starting point for independent work. Review and delivery use separate slots.
 
 ## Coordinator
 

@@ -215,7 +215,7 @@ def check_mcp_and_hooks(folder):
     assert replies[1]["protocolVersion"] == "2025-06-18" and replies[2] == {}
     assert replies[3]["protocolVersion"] == "2025-11-25" and replies[4]["isError"]
     assert {t["name"] for t in replies[5]["tools"]} == {
-        "harness_context_budget", "harness_view", "harness_find", "harness_code_map", "harness_metrics"}
+        "harness_context_budget", "harness_view", "harness_find", "harness_code_map", "harness_metrics", "harness_records"}
     def rpc(args):
         message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                    "params": {"name": "harness_context_budget", "arguments": args}}

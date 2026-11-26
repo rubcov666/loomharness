@@ -33,9 +33,22 @@ The enabled hook prints the `view.py` command for the current system. Append a f
 | Count log lines containing a marker | `build.log --find "state=retry" --count` | Exact count from `--start` to the end of the file. Multiple hits on one line count once. In MCP set `count_only: true` on `harness_find`. |
 | Record the version of a verified file of any format | `slides.pptx --fingerprint` | SHA-256 of the full file and its size in bytes. |
 | Request the same fields of a large report again | `report.json --fields id status --receipt new`, then replace `new` with the returned receipt | The first read includes the view and receipt. Matching path, bytes, options and representation return one `UNCHANGED` line. |
+| Filter, count and sum many records without printing them | `records.py FILE --spec query.json` or MCP `harness_records` | Totals for the whole selection, bounded evidence and original line numbers or JSON indexes. |
 | Check whether a previously verified result can be reused | `slides.pptx --expect-sha256 HASH` | UNCHANGED with exit 0 on a match, CHANGED with exit 1 on a change. Read errors and invalid hashes return 2. |
 
 A page contains up to 100 lines (default 20), bounded by 48 KiB of text. Lines over 440 characters show a prefix followed by `[…]`. Use `--find` to search inside a long line. Numbers refer to the original file, including JSON before tabular formatting.
+
+## Summarize records locally
+
+Use `records.py FILE --spec query.json` for JSON arrays, JSONL/NDJSON and CSV/TSV with headers. For a JSON object with an array, add `--rows-key KEY`. For unstructured text, supply a pattern with named captures, such as `--pattern '(?P<level>ERROR|WARN) service=(?P<service>\w+)'`. `harness_records` accepts the equivalent path, format options and inline `query`.
+
+```json
+{"where":{"service":"payments"},"gte":{"at":"2026-01-10T10:00:00Z"},"lt":{"at":"2026-01-10T11:00:00Z"},"group":["status"],"sums":["amount"],"fields":["at","status","amount"],"limit":5}
+```
+
+`where` compares exact values. Match CSV/TSV cells and captures as text. Bounds are inclusive for `gte` and exclusive for `lt`. Supply a number for numeric ranges or an ISO timestamp with a zone for time ranges. Sums use finite numbers or decimal text. JSON decimal values and fractional totals appear as exact decimal strings. Group by scalar fields. Use `offset` to page evidence or `limit:0` for totals alone. `group_limit` bounds the displayed groups. Lines skipped by the pattern, missing filter values, invalid ranges, missing sum inputs and omitted details are counted. A total applies to the supplied file and filters. When a range is incomplete, follow the source locations or reopen the needed file version.
+
+For project-specific formats, normalize each record and pass `(location, record)` pairs to `records.summarize`. Keep any rules for matching events or interpreting fields alongside the project's parser.
 
 A search with no matches exits 1. When layout, a formula or a current value matters, open the original document, sheet or record in its native tool. Use the object ID and version for cloud data. A local hash covers only the local bytes. Include other inputs, settings and source dates that affect the result.
 
