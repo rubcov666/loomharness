@@ -4,13 +4,13 @@ Use compact reads, local metrics and context budgeting in MCP-capable agents. Li
 
 | Client | Setup | Edit checks | Prompt hints | Coverage |
 |---|---|---|---|---|
-| Codex CLI | `install.py --cli codex` | Full | Full | Installer and hooks exercised in CI |
+| Codex CLI | `install.py --cli codex` | Full | Full | Local installer and hook checks |
 | Codex Desktop | Shares `~/.codex` with the CLI | Full | Full | Documented by OpenAI |
 | Claude Code | `install.py --cli claude` | Full for Edit, Write and MultiEdit | Full | Simulated lifecycle events |
 | Claude Desktop Code tab | Shares `~/.claude` with the CLI | Full | Full | Documented by Anthropic |
 | Gemini CLI | `install.py --cli gemini` | Full for write_file and replace | Full | Simulated lifecycle events |
 | Antigravity App and CLI | `install.py --cli antigravity` | Full mapping | Startup and stop | Based on vendor documentation, live verification pending |
-| OpenCode | `integrations/opencode` | Bridge | Bridge | Prompt delivery observed on OpenCode 1.18.0 for macOS. CI covers 1.18 and 2.4 contracts. |
+| OpenCode | `integrations/opencode` | Bridge | Bridge | Prompt delivery observed on OpenCode 1.18.0 for macOS. Local tests cover 1.18 and 2.4 contracts. |
 | DeepSeek Harness | `SKILL.md` and `integrations/dsh` MCP bundle | No local hook | Skill | MCP bundle configuration |
 | Claude Desktop chat | `claude_desktop_config.json` (MCP) | — | — | Manual MCP configuration |
 | Gemini Desktop chat | Remote MCP over HTTPS | — | — | Requires an HTTP-to-stdio wrapper |
