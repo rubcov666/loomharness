@@ -1,6 +1,6 @@
 # LoomHarness
 
-**English** · [Русский](SIMPLE.md) · Version **1.1.2**
+**English** · [Русский](SIMPLE.md) · Version **1.1.3**
 
 LoomHarness helps AI assistants save tokens on any type of task, from coding and research to working with documents and data. It selects relevant content from files, logs and tables locally while keeping the full source available. It also helps reuse previous checks and organize work across agents.
 
@@ -14,6 +14,10 @@ Two sample tasks in Codex compared sending full files with sending only the rele
 | GPT-6.2 Astra | 75,091 → 35,176 (**−53%**) | $0.3896 → $0.0501 (**−87%**) |
 
 Costs use OpenAI API Standard rates and account for cached input. Per million uncached input and output tokens respectively, Sol costs $2 and $10, and Astra costs $8 and $40. [Full measurements and rates](docs/benchmarks.md#whole-task-token-usage-in-codex)
+
+## Disk space
+
+In a Windows sample with one active project, LoomHarness used **1.79 MiB** on disk. The installed toolkit used **800 KiB**, project data **998 KiB**, and shared profile files **32 KiB**. Saved logs and caches can increase usage. [Measurement method](docs/benchmarks.md#disk-footprint)
 
 ## Install with an AI assistant
 

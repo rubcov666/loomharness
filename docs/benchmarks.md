@@ -1,5 +1,18 @@
 # LoomHarness benchmarks
 
+## Disk footprint
+
+A snapshot on Windows used the allocated size of each file reported by `GetFileInformationByHandleEx` in `FILE_STANDARD_INFO.AllocationSize`. The installed toolkit included Python bytecode. Project data covered the SQLite board and its sidecar files, settings, and logs and caches attributable to LoomHarness. The shared profile files were measured once. [Windows file allocation](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_standard_info)
+
+| LoomHarness files | Allocated bytes | Rounded size |
+|---|---:|---:|
+| Installed toolkit | 819,416 | 800 KiB |
+| One active project's data | 1,021,920 | 998 KiB |
+| Shared profile files | 33,016 | 32 KiB |
+| **Total** | **1,874,352** | **1.79 MiB** |
+
+The per-project figure depends on the board state and the amount of saved output.
+
 ## Whole-task token usage in Codex
 
 Two generated tasks ran on GPT-6.2 Sol and GPT-6.2 Astra in Codex CLI 0.171.0-alpha.13.2 on November 26, 2026. Each task used the same question, model, low reasoning effort and exact expected JSON with and without LoomHarness. There was one request per run and no subagents.
