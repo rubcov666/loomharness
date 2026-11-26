@@ -1,6 +1,6 @@
 # LoomHarness
 
-**English** · [Русский](SIMPLE.md) · Version **1.1.0**
+**English** · [Русский](SIMPLE.md) · Version **1.1.1**
 
 LoomHarness helps AI assistants work with large files, logs and tables. It finds relevant lines and values locally, so the model reads fewer tokens and the full source stays available. It also helps reuse previous checks and organize work across agents.
 
@@ -15,30 +15,21 @@ Two sample tasks in Codex compared sending full files with sending only the rele
 
 Costs use OpenAI API Standard rates and account for cached input. Per million uncached input and output tokens respectively, Sol costs $2 and $10, and Astra costs $8 and $40. [Full measurements and rates](docs/benchmarks.md#whole-task-token-usage-in-codex)
 
-## Start with Codex
-
-Requires **Python 3.11+** on Windows, macOS or Linux.
-
-1. [Download the current ZIP](https://github.com/rubcov666/loomharness/archive/refs/heads/main.zip) and extract it.
-2. In the folder with `install.py`, run `python -X utf8 install.py --cli codex`. Use `python3` if that is your Python command.
-3. If Codex asks you to review the hooks, open a system terminal and run `codex`. In **Codex CLI**, enter `/hooks` and trust the four LoomHarness entries. For Codex Desktop, use the CLI with the same Codex configuration. [Codex hook setup](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
-4. In your project chat, send `LoomHarness on` and start your task.
-
-[Setup for Claude Code, Gemini CLI, OpenCode and other clients](integrations/README.md)
-
-### Install with an AI assistant
+## Install with an AI assistant
 
 Copy this prompt to an assistant with terminal access.
 
 ```text
-Install and configure LoomHarness for this project.
-Download the main branch from https://github.com/rubcov666/loomharness.
-Use README.md and integrations/README.md to choose the setup for my OS and client.
-Run the installation, verify it, and complete the project setup where you can.
-If you need me to approve hooks or send an activation message, show me the exact step.
-For Codex hook approval, direct me to /hooks inside Codex CLI.
-If the private repository is inaccessible, ask me for the ZIP.
+Install and configure LoomHarness for this project. Detect my OS and the CLI I'm using.
+Download the main branch from https://github.com/rubcov666/loomharness. If you cannot access the repository, ask me for its ZIP.
+Follow integrations/README.md and use Python 3.11 or later. Choose the documented setup for this client.
+For a CLI without a native adapter, connect loomharness/scripts/mcp_server.py through stdio MCP if supported. Otherwise, use the Python tools directly from the shell.
+Verify the setup for this project and report what works. If a trust prompt or activation requires my input, show me that exact step.
 ```
+
+### Supported CLI clients
+
+Codex CLI · Claude Code · Gemini CLI · OpenCode · Antigravity CLI (experimental) · DeepSeek Harness (MCP)
 
 ## Tools at a glance
 

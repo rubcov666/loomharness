@@ -31,14 +31,12 @@ These are the USD rates per million tokens as of November 26, 2026. [OpenAI API 
 
 The estimates apply API list prices to the observed Codex token mix. An API run may have a different cache profile. The projection prices model tokens at ordinary Standard rates and excludes explicit cache writes, tool fees and taxes. Subscription usage is metered separately. [GPT-6.2 Sol pricing details](https://developers.openai.com/api/docs/models/gpt-6.2-sol) · [GPT-6.2 Astra pricing details](https://developers.openai.com/api/docs/models/gpt-6.2-astra)
 
-### Reproduce the paired measurement
+### Recalculate the paired measurement
 
-The first command recomputes the table from the checked-in counters without calling a model. The last two commands make fresh Codex requests and use the account's allowance. Use Python 3.11+ and an authenticated Codex CLI with access to the chosen models. Add `--pairs N` to repeat each comparison with alternating order.
+Recompute the table locally from the checked-in counters with Python 3.11+.
 
 ```sh
 python -X utf8 tests/measure_task_usage.py --report docs/task-usage-sol.json docs/task-usage-astra.json
-python -X utf8 tests/measure_task_usage.py --model gpt-6.2-sol --output sol-new.json
-python -X utf8 tests/measure_task_usage.py --model gpt-6.2-astra --output astra-new.json
 ```
 
 ## Six tool-output measurements

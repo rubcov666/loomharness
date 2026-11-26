@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import runpy
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -145,7 +146,10 @@ if __name__ == "__main__":
                 (base / name).mkdir()
             review_run_log(base / "review")
             wal_mode(base / "board", os.environ)
-            javac_stamps(base / "javac")
+            if shutil.which("java") and shutil.which("javac"):
+                javac_stamps(base / "javac")
+            else:
+                print("SKIP: javac stamps (JDK unavailable)")
             delegation_default(base / "review", base / "codex-delegation")
             git_status_cache(base / "git-cache", os.environ)
-    print("OK: render cap, read line cap, review run log, WAL board, javac stamps, git-status cache and delegation default")
+    print("OK: compact I/O, review run log, WAL board, git-status cache and delegation default")

@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from verify_install import temporary_profile
@@ -116,6 +117,7 @@ def verify_audit(cwd):
 
 
 def verify_map(cwd):
+    (cwd / "service").mkdir(exist_ok=True)
     (cwd / "tracked.py").write_text("def discount_rate():\n    return 5\n", encoding="utf8")
     (cwd / "usage.ts").write_text("const rate = discount_rate();\n", encoding="utf8")
     (cwd / "ignored.py").write_text("def discount_rate(): pass", encoding="utf8")
@@ -185,6 +187,9 @@ if __name__ == "__main__":
     with temporary_profile() as cwd:
         subprocess.run(["git", "init", "-q"], cwd=cwd, check=True)
         verify_run(cwd)
-        verify_audit(cwd)
+        if shutil.which("codex"):
+            verify_audit(cwd)
+        else:
+            print("SKIP: native instruction audit (Codex CLI unavailable)")
         verify_map(cwd)
     print("PASS: summaries and raw evidence, instruction layers and MCP, ranked source locations")
