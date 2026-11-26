@@ -9,7 +9,7 @@ Use compact reads, local metrics and context budgeting in MCP-capable agents. Li
 | Claude Code | `install.py --cli claude` | Full for Edit, Write and MultiEdit | Full | Simulated lifecycle events |
 | Claude Desktop Code tab | Shares `~/.claude` with the CLI | Full | Full | Documented by Anthropic |
 | Gemini CLI | `install.py --cli gemini` | Full for write_file and replace | Full | Simulated lifecycle events |
-| Antigravity desktop | `install.py --cli antigravity` | Full mapping | Startup and stop | Based on vendor documentation, live verification pending |
+| Antigravity App and CLI | `install.py --cli antigravity` | Full mapping | Startup and stop | Based on vendor documentation, live verification pending |
 | OpenCode | `integrations/opencode` | Bridge | Bridge | Prompt delivery observed on OpenCode 1.18.0 for macOS. CI covers 1.18 and 2.4 contracts. |
 | DeepSeek Harness | `SKILL.md` and `integrations/dsh` MCP bundle | No local hook | Skill | MCP bundle configuration |
 | Claude Desktop chat | `claude_desktop_config.json` (MCP) | — | — | Manual MCP configuration |
