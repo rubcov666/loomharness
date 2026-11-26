@@ -59,10 +59,11 @@ def verify(folder):
     assert page["evidence_omitted"] == 2 and page["next_offset"] == 1
     second = inspect(invoices, dict(query, offset=1))
     assert second["evidence"] == [{"at": {"line": 4}, "values": {"description": "fee"}}]
-    result = rpc(path=str(invoices), root=str(folder), query=query)
-    assert not result["isError"] and json.loads(result["content"][0]["text"]) == page
     allowed = folder / "allowed"
     allowed.mkdir()
+    result = rpc(path=str(allowed / ".." / invoices.name), root=str(folder), query=query)
+    assert not result["isError"], result
+    assert json.loads(result["content"][0]["text"]) == dict(page, source=str(invoices.resolve()))
     assert rpc(path=str(invoices), root=str(allowed))["isError"]
 
     sensor = folder / "sensors.ndjson"
