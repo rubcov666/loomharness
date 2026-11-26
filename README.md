@@ -1,8 +1,8 @@
 # LoomHarness
 
-**English** · [Русский](SIMPLE.md) · Version **1.1.1**
+**English** · [Русский](SIMPLE.md) · Version **1.1.2**
 
-LoomHarness helps AI assistants work with large files, logs and tables. It finds relevant lines and values locally, so the model reads fewer tokens and the full source stays available. It also helps reuse previous checks and organize work across agents.
+LoomHarness helps AI assistants save tokens on any type of task, from coding and research to working with documents and data. It selects relevant content from files, logs and tables locally while keeping the full source available. It also helps reuse previous checks and organize work across agents.
 
 ## Token and cost savings
 
