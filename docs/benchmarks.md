@@ -43,7 +43,7 @@ python -X utf8 tests/measure_task_usage.py --model gpt-6.2-astra --output astra-
 
 ## Six tool-output measurements
 
-The six CLI tasks in the [README](../README.md#token-benchmarks) use generated data. Each pair asks the same question twice and checks the answer. The runner counts the UTF-8 text the tool returns, including diagnostics and trailing newlines, using `o200k_base`. The baseline outputs total 15,008 tokens. The LoomHarness outputs total 1,346. The 91.0% reduction is calculated from these totals.
+These six CLI tasks use generated data. Each pair asks the same question twice and checks the answer. The runner counts the UTF-8 text the tool returns, including diagnostics and trailing newlines, using `o200k_base`. The baseline outputs total 15,008 tokens. The LoomHarness outputs total 1,346. The 91.0% reduction is calculated from these totals.
 
 For an exact reproduction, use Python 3.11+ and Git with the source revision below. It contains the original 1.0.0 diagnostics used in these counts. Later English wording can produce different token counts for the same result. The benchmark runner is part of the source repository. [Measured source revision](https://github.com/rubcov666/loomharness/tree/db9155686d651485da10c1d61d5c65ffe7464cff)
 
@@ -70,7 +70,7 @@ The change column uses `(LoomHarness − baseline) / baseline`. A targeted shell
 
 ### Projecting repeated operations
 
-The README also shows what the six measured outputs would amount to if each task ran 1,000 times with the same input and the same output length. Multiply each per-task count above by 1,000, then divide by 1,000,000 to express it in millions. The projected totals are 15.008 million baseline tokens and 1.346 million LoomHarness tokens across 6,000 executions. The difference is 13.662 million tool-output tokens. Model input, generated replies, cache usage and billing are separate measurements.
+At 1,000 repetitions per task with the same inputs and output lengths, the projected totals are 15.008 million baseline tokens and 1.346 million LoomHarness tokens across 6,000 executions. The difference is 13.662 million tool-output tokens. Model input, generated replies, cache usage and billing are separate measurements.
 
 ## Eight-request build investigation
 

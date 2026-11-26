@@ -1,77 +1,56 @@
 # LoomHarness
 
-**English** · [Russian](SIMPLE.md)
+**English** · [Русский](SIMPLE.md)
 
-LoomHarness gives a coding agent the error, source line or count it needs and keeps the full output on disk. In an eight-request replay on synthetic build logs, reading matching lines saved **3.69 million tokens**. Both approaches produced the same final report. [Measured results](#token-benchmarks)
+LoomHarness helps AI assistants work with large files, logs and tables. It finds relevant lines and values locally, so the model reads fewer tokens and the full source stays available. It also helps reuse previous checks and organize work across agents.
 
-**Version 1.0.0** · Python 3.11+ · Windows, macOS and Linux · **[Download ZIP](https://github.com/rubcov666/loomharness/releases/download/v1.0.0/loomharness-1.0.0.zip)**
+## Token and cost savings
 
-## What to use it for
+Two sample tasks in Codex compared sending full files with sending only the relevant data. Every answer passed the same checks.
 
-1. **Send fewer tokens to the model.** Return the failing step from a build or the requested fields from a report. The full file stays available for follow-up questions.
-2. **Find the cause faster.** Jump from a diagnostic to the matching log lines or to the file and line where a function is declared.
-3. **Keep long investigations within the context window.** Estimate when summarizing earlier turns will save tokens over the remaining requests.
-4. **Reuse work that still applies.** Check whether inputs and outputs have changed before repeating a build or analysis.
-5. **Coordinate independent work on larger projects.** Keep a small fix in one chat. For a larger project, assign owners to subprojects, choose models by stage and track review and token usage across agents.
+| Model | Total tokens, without → with LoomHarness | Estimated API cost, without → with LoomHarness |
+|---|---:|---:|
+| GPT-6.2 Sol | 75,214 → 35,300 (**−53%**) | $0.0974 → $0.0173 (**−82%**) |
+| GPT-6.2 Astra | 75,091 → 35,176 (**−53%**) | $0.3896 → $0.0501 (**−87%**) |
 
-## Try it in a minute
+Costs use OpenAI API Standard rates and account for cached input. Per million uncached input and output tokens respectively, Sol costs $2 and $10, and Astra costs $8 and $40. [Full measurements and rates](docs/benchmarks.md#whole-task-token-usage-in-codex)
 
-Download the ZIP above, extract it and open a terminal in the folder containing `install.py`. For Codex, run this with Python 3.11 or later. On Windows, use `python` in place of `python3`.
+## Start with Codex
 
-```sh
-python3 -X utf8 install.py --cli codex
+Requires **Python 3.11+** on Windows, macOS or Linux.
+
+1. [Download the current ZIP](https://github.com/rubcov666/loomharness/archive/refs/heads/main.zip) and extract it.
+2. In the folder with `install.py`, run `python -X utf8 install.py --cli codex`. Use `python3` if that is your Python command.
+3. If Codex asks you to review the hooks, open a system terminal and run `codex`. In **Codex CLI**, enter `/hooks` and trust the four LoomHarness entries. For Codex Desktop, use the CLI with the same Codex configuration. [Codex hook setup](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+4. In your project chat, send `LoomHarness on` and start your task.
+
+[Setup for Claude Code, Gemini CLI, OpenCode and other clients](integrations/README.md)
+
+### Install with an AI assistant
+
+Copy this prompt to an assistant with terminal access.
+
+```text
+Install and configure LoomHarness for this project.
+Download the main branch from https://github.com/rubcov666/loomharness.
+Use README.md and integrations/README.md to choose the setup for my OS and client.
+Run the installation, verify it, and complete the project setup where you can.
+If you need me to approve hooks or send an activation message, show me the exact step.
+For Codex hook approval, direct me to /hooks inside Codex CLI.
+If the private repository is inaccessible, ask me for the ZIP.
 ```
 
-Open `/hooks` in Codex and approve the four LoomHarness entries on first setup. Send `LoomHarness on` in your project chat. Try asking “Find the first failure in the build log and show me the lines that explain it.”
+## Tools at a glance
 
-The ZIP contains the installer, tools, integrations and documentation. Installation uses the Python standard library. The project's own tests run in GitHub Actions for maintainers. [CI workflow](https://github.com/rubcov666/loomharness/blob/main/.github/workflows/verify.yml)
-
-## Token benchmarks
-
-On two Codex tasks, GPT-6.2 Sol used **35,300 total tokens with LoomHarness vs. 75,214 without (53.07% fewer)**. GPT-6.2 Astra used **35,176 vs. 75,091 (53.16% fewer)**. Both modes passed the same checks. [Input, cache, output and estimated API costs](docs/benchmarks.md#whole-task-token-usage-in-codex)
-
-### Measured over eight requests
-
-Twelve synthetic build logs contained the limits, exceptions, source references and retry rule needed for one report. The replay counted cumulative input and output, including repeated history, summaries and a follow-up search. [Replay method and exact counts](docs/benchmarks.md#eight-request-build-investigation)
-
-| How the logs were read | Tokens used (millions) | Tokens saved vs. full logs (millions) |
-|---|---:|---:|
-| Carry full logs into later requests | 3.704577 | — |
-| Read full logs and summarize older turns twice | 1.854089 | 1.850488 |
-| Search for decisions and look up the retry rule | 0.011514 | **3.693063** |
-
-### If each CLI task ran 1,000 times
-
-The six tasks below were measured individually with the original 1.0.0 tool messages. For this projection, each measured output is multiplied by 1,000, assuming identical inputs and output lengths each time. Across 6,000 such executions, tool output would fall from **15.008 million to 1.346 million tokens**, saving **13.662 million (91.0%)**. [Measured counts per task](docs/benchmarks.md#six-tool-output-measurements)
-
-| Task × 1,000 | Baseline (million tokens) | LoomHarness (million tokens) | Change |
-|---|---:|---:|---:|
-| Classify five test logs | 8.391 | 0.316 | -96.2% |
-| Locate a definition | 1.455 | 0.081 | -94.4% |
-| Read status for 60 jobs | 3.956 | 0.746 | -81.1% |
-| Count 24 matching lines | 0.228 | 0.012 | -94.7% |
-| Count alerts in 120 samples | 0.786 | 0.098 | -87.5% |
-| Read totals for four agents | 0.192 | 0.093 | -51.6% |
-| **All 6,000 executions** | **15.008** | **1.346** | **−91.0%** |
-
-In a separate 200,000-line log, the answer “200 matches” took **12 tokens**, down from **542** with excerpts. For a 100,000-line log, the same preview took **40.9 ms** with the optimized reader, down from **178.0 ms** (median of 21 paired runs on macOS). [Search measurement](docs/benchmarks.md#searching-200000-lines) · [Timing method](docs/benchmarks.md#previewing-100000-lines)
-
-## Tool guide
-
-| Tool | What it does and when to use it |
+| Tool | What it does |
 |---|---|
-| `context.py run` | Runs a command, saves stdout and stderr, and returns its exit code and key diagnostics. Use it for noisy builds and test runs. |
-| `view.py` · `harness_view` · `harness_find` | Reads numbered lines or selected JSON fields. Literal search returns excerpts with context or just a match count. Use it to answer a question about one file. |
-| `context.py map` · `harness_code_map` | Ranks candidate files and reports paths and line numbers for a query. For a Java method and its overloads, `context.py symbol` uses the optional Tree-sitter parser. |
-| `history.py budget` · `harness_context_budget` | Weighs the cost of a summary and rereading details against carrying history into future requests. Use it to decide when to compact. |
-| `context.py reuse` · `context.py build-check` | The first compares fingerprints of inputs and saved results. The second matches recorded checks to a specific build. Use them before repeating work. |
-| `metrics.py --summary` · `harness_metrics` | Reads time-series data locally and returns coverage, missing samples, the peak and alert counts. Use it to investigate a threshold from a large report. |
-| `records.py FILE --spec query.json` · `harness_records` | Filters logs and table exports. Returns counts, sums and source references for a limited sample of matching records. [Query options](loomharness/references/context.md#summarize-records-locally) |
-| `team.py` · `team.py usage` | Tracks task owners, handoffs and reviews. Its usage report collects recorded input, cached input and output for the selected chat and its local agents. |
-| `context.py audit` · `harness.py doctor` | The audit finds repeated instructions and lists configured MCP servers. The doctor reports hook registration and observed events. Use them when troubleshooting your setup. |
+| `view.py` | Finds matching lines and reads the fields you need. |
+| `context.py run` | Saves full command output and shows the key errors. |
+| `context.py map` | Points to relevant files and source lines. |
+| `records.py` · `metrics.py` | Filters records and summarizes counts, totals and alerts. |
+| `context.py reuse` · `context.py build-check` | Checks whether earlier results still apply. |
+| `history.py budget` | Helps decide when to summarize a long chat. |
+| `team.py` · `team.py usage` | Tracks owners, tasks, reviews and token use. |
+| `harness.py doctor` · `context.py audit` | Checks hook setup and finds repeated instructions. |
 
-## Other clients
-
-The installer also supports Claude Code and Gemini CLI. OpenCode has a plugin. In a stdio MCP client, set the command to your Python executable and the argument to the absolute path to `loomharness/scripts/mcp_server.py`. The `harness_*` tools in the table are available through MCP. [Client setup and support](integrations/README.md)
-
-[Command reference](loomharness/references/commands.md) · [Context and history](loomharness/references/history.md) · [Working with agents](loomharness/references/team.md) · [MIT license](LICENSE)
+[Command reference](loomharness/references/commands.md) · [Team setup](loomharness/references/adaptive-team.md#first-team-model-choice) · [MIT license](LICENSE)
