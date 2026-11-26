@@ -1,6 +1,7 @@
 """Project-local model choices and a preview of the first-team questions."""
 
 import json
+from copy import copy
 from pathlib import Path
 
 PRESETS = ("current", "balanced", "strong", "manual")
@@ -23,6 +24,11 @@ TEXT = {
         ),
         "pick": "Which available model should be used for {role}?",
         "unavailable": "{model} is unavailable for {role}. Which model should replace it?",
+        "confirmation": "Use these models for this project?",
+        "confirm": "Confirm selection",
+        "change": "Change models",
+        "input": "Enter a number or an exact ID (:cancel to stop): ",
+        "invalid": "Choose a listed option.",
         "role": {
             "current": "the current chat",
             "strong": "strong work",
@@ -48,6 +54,11 @@ TEXT = {
         ),
         "pick": "Какую доступную модель использовать для роли «{role}»?",
         "unavailable": "Модель {model} недоступна для роли «{role}». Какую выбрать взамен?",
+        "confirmation": "Использовать эти модели для проекта?",
+        "confirm": "Подтвердить выбор",
+        "change": "Изменить модели",
+        "input": "Введи номер или точный ID (:cancel — отмена): ",
+        "invalid": "Выбери вариант из списка.",
         "role": {
             "current": "текущий чат",
             "strong": "сложные задачи",
@@ -78,7 +89,9 @@ def arguments(cmds, text):
     routine.add_argument("--routine", type=text)
     routine.add_argument("--no-routine", action="store_true")
     cmd.add_argument("--current-effort", choices=EFFORTS)
-    cmd.add_argument("--apply", action="store_true", help="save the user's confirmed selection")
+    presentation = cmd.add_mutually_exclusive_group()
+    presentation.add_argument("--apply", action="store_true", help="save the user's confirmed selection")
+    presentation.add_argument("--interactive", action="store_true", help="ask and confirm in a terminal")
 
 
 def catalog(root, a, codex_request):
@@ -172,7 +185,7 @@ def profiles(a, saved, models):
     confirmed = saved if saved and saved["preset"] == preset else None
     questions = []
 
-    def choose(role, value, *, category=None, optional=False):
+    def choose(role, value, *, category=None, optional=False, use_default=False):
         eligible = list(models or {})
         tagged = [
             name
@@ -180,7 +193,7 @@ def profiles(a, saved, models):
             if (
                 models[name].get("tier") == category
                 if category
-                else role == "worker" and models[name].get("default") is True
+                else use_default and models[name].get("default") is True
             )
         ]
         if value is None:
@@ -188,7 +201,7 @@ def profiles(a, saved, models):
                 return tagged[0]
             if optional:
                 return None
-            if len(eligible) == 1:
+            if len(eligible) == 1 and preset != "manual":
                 return eligible[0]
         elif models is None or value in models:
             return value
@@ -196,7 +209,7 @@ def profiles(a, saved, models):
         prompt = (
             lang["unavailable"].format(model=value, role=title) if value else lang["pick"].format(role=title)
         )
-        questions.append({"role": role, "question": prompt, "options": tagged or eligible})
+        questions.append({"role": role, "question": prompt, "options": eligible})
         return None
 
     previous = confirmed["roles"] if confirmed else {}
@@ -206,14 +219,16 @@ def profiles(a, saved, models):
         selected = dict.fromkeys(ROLES, current)
     elif preset in ("balanced", "strong"):
         strong = choose("strong", a.strong or before["reviewer"], category="strong")
-        worker = strong if preset == "strong" else choose("worker", a.worker or before["worker"])
+        worker = (
+            strong if preset == "strong" else choose("worker", a.worker or before["worker"], use_default=True)
+        )
         selected = {"coordinator": strong, "worker": worker, "reviewer": strong}
     else:
         selected = {role: choose(role, getattr(a, role) or before[role]) for role in ROLES}
     routine = None
     if preset in ("balanced", "manual") and not a.no_routine:
         old = confirmed.get("routine") if confirmed else None
-        if a.routine or old or not confirmed:
+        if a.routine or old or (preset == "balanced" and not confirmed):
             routine = choose("routine", a.routine or (old and old["model"]), category="fast", optional=True)
         check(
             not a.routine or routine not in selected.values() or routine is None,
@@ -242,7 +257,74 @@ def profiles(a, saved, models):
         "roles": roles,
         "routine": {"model": routine, "thinking": "low"} if routine else None,
     }
-    return {"status": "ready", "policy": policy, "catalog_checked": models is not None}
+    result = {"status": "ready", "policy": policy, "catalog_checked": models is not None}
+    if policy != saved:
+        result["confirmation"] = {
+            "question": lang["confirmation"],
+            "options": [{"id": key, "label": lang[key]} for key in ("confirm", "change")],
+        }
+    return result
+
+
+def terminal(a, saved, models, source, output):
+    """Present the same questionnaire as a host UI, keeping JSON on stdout."""
+    lang = TEXT[a.lang]
+    a = copy(a)
+
+    def answer(question, choices):
+        print("\n" + question, file=output)
+        for number, (key, label) in enumerate(choices, 1):
+            print(f"  {number}. {label}", file=output)
+        while True:
+            print(lang["input"], end="", file=output, flush=True)
+            raw = source.readline()
+            value = raw.strip()
+            if not raw or value == ":cancel":
+                return None
+            for number, (key, label) in enumerate(choices, 1):
+                if value in (str(number), key, label):
+                    return key
+            if value and not choices:
+                return value
+            print(lang["invalid"], file=output)
+
+    try:
+        while True:
+            result = profiles(a, saved, models)
+            if result["status"] == "choose-preset":
+                a.preset = answer(result["question"], [(row["id"], row["label"]) for row in result["options"]])
+                if a.preset is None:
+                    break
+            elif result["status"] == "choose-models":
+                for question in result["questions"]:
+                    choices = [(key, (models[key].get("label") or key)) for key in question["options"]]
+                    choice = answer(question["question"], choices)
+                    if choice is None:
+                        return {"status": "cancelled"}
+                    setattr(a, question["role"], choice)
+            elif confirmation := result.get("confirmation"):
+                policy = result["policy"]
+                for role, profile in policy["roles"].items():
+                    print(f"  {lang['role'][role]}: {profile['model']} ({profile['thinking']})", file=output)
+                if profile := policy["routine"]:
+                    print(
+                        f"  {lang['role']['routine']}: {profile['model']} ({profile['thinking']})", file=output
+                    )
+                choice = answer(
+                    confirmation["question"], [(row["id"], row["label"]) for row in confirmation["options"]]
+                )
+                if choice == "confirm":
+                    return result
+                if choice is None:
+                    break
+                saved = None
+                for role in ("preset", "current", "current_effort", "strong", *ROLES, "routine"):
+                    setattr(a, role, None)
+            else:
+                return result
+    except KeyboardInterrupt:
+        pass
+    return {"status": "cancelled"}
 
 
 def assignment(db, project, role):

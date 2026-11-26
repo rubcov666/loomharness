@@ -88,6 +88,7 @@ with tempfile.TemporaryDirectory() as fixture:
     assert "Project hooks enabled." in first_enabled and by_request in first_enabled and "scripts/view.py" in first_enabled
     assert "rg -n -C 2" in first_enabled and "30 seconds" in first_enabled
     assert "references/team.md" in first_enabled
+    assert "interactive model-choice flow" in first_enabled
     assert not (Path(env["CODEX_HOME"]) / "loomharness" / "teams").exists()
     # A repeat SessionStart of the same chat injects nothing (receipt dedup).
     assert event("SessionStart") is None
@@ -109,6 +110,7 @@ with tempfile.TemporaryDirectory() as fixture:
         db.execute("INSERT INTO delegation_notices VALUES (?)", (hashlib.sha256(old_key.encode()).digest(),))
     team_hint = note(event("UserPromptSubmit", **old_chat))
     assert "team.py intake" in team_hint and "The coordinator asks the owner" in team_hint
+    assert "interactive model-choice flow" not in team_hint
     assert event("UserPromptSubmit", **old_chat) is None
     assert "Project hooks enabled." in note(event("UserPromptSubmit",session="overlapping",prompt="нет"))
     legacy = Path(fixture)/"legacy"

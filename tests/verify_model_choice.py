@@ -1,11 +1,15 @@
 """Exercise saved model choices and the coordinator setup prompts."""
 
 import json
+import runpy
+import sys
 from hashlib import sha256
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
-from verify_team import add, cli
+from verify_team import SCRIPTS, add, cli
 
 
 def verify(root):
@@ -27,10 +31,22 @@ def verify(root):
     menu = choice()
     assert menu["status"] == "choose-preset" and menu["recommended"] == "balanced"
     assert [entry["id"] for entry in menu["options"]] == ["current", "balanced", "strong", "manual"]
-    assert choice("--preset", "manual", "--apply")["status"] == "choose-models"
+    manual_prompt = choice("--preset", "manual", "--apply")
+    assert manual_prompt["status"] == "choose-models"
+    assert [question["role"] for question in manual_prompt["questions"]] == [
+        "coordinator",
+        "worker",
+        "reviewer",
+    ]
+    assert choice("--preset", "manual", "--coordinator", "expert")["questions"][0]["role"] == "worker"
+    manual_preview = choice(
+        "--preset", "manual", "--coordinator", "expert", "--worker", "main", "--reviewer", "expert"
+    )
+    assert manual_preview["policy"]["routine"] is None
     assert "model_choice" not in cli(root, "lead", "intake")
     preview = choice("--preset", "balanced")
     assert preview["status"] == "ready" and preview["policy"]["routine"]["model"] == "routine"
+    assert [item["id"] for item in preview["confirmation"]["options"]] == ["confirm", "change"]
     assert preview["policy"]["roles"] == {
         "worker": {"model": "main", "thinking": "low"},
         "coordinator": {"model": "expert", "thinking": "high"},
@@ -77,6 +93,7 @@ def verify(root):
         v == {"model": "main", "thinking": "medium"} for v in current["roles"].values()
     )
     assert choice()["policy"] == current
+    assert "confirmation" not in choice()
     task = add(root, "Data", "Check the reconciled export", "--resource", "reserve")
     result = cli(root, "lead", "dispatch", task, "--tier", "strong")
     assert result["model"] == "main" and result["thinking"] == "medium"
@@ -106,9 +123,72 @@ def verify(root):
     assert choice("--preset", "balanced")["questions"][0]["role"] == "strong"
 
 
+class Terminal(StringIO):
+    def isatty(self):
+        return True
+
+
+def verify_terminal(root):
+    root.mkdir()
+    catalogue = root / "models.json"
+    catalogue.write_text(
+        json.dumps([{"id": "vendor/steady", "label": "Steady"}, {"id": "vendor/quick", "label": "Quick"}]),
+        encoding="utf8",
+    )
+    team = runpy.run_path(str(SCRIPTS / "team.py"))
+
+    def respond(data, *extra):
+        args = team["build_parser"]().parse_args(
+            [
+                "--project",
+                str(root),
+                "--actor",
+                "portable-lead",
+                "model-choice",
+                "--interactive",
+                "--catalog",
+                str(catalogue),
+                *extra,
+            ]
+        )
+        stdout, stderr = StringIO(), Terminal()
+        with (
+            patch.object(sys, "stdin", Terminal(data)),
+            patch.dict("os.environ", CODEX_HOME=str(root.parent / "codex")),
+        ):
+            team["run"](args, args.actor_id, stdout=stdout, stderr=stderr)
+        return json.loads(stdout.getvalue()), stderr.getvalue()
+
+    for cancel in ("", ":cancel\n"):
+        result, _ = respond("manual\n1\n2\n1\n" + cancel)
+        assert result == {"status": "cancelled"}
+        assert "model_choice" not in cli(root, "portable-lead", "intake")
+    assert "requires a live terminal" in cli(root, "portable-lead", "model-choice", "--interactive", fail=True)
+    result, transcript = respond(
+        "4\n1\nmissing\n2\n1\nchange\nmanual\nQuick\nvendor/steady\n2\n1\n", "--lang", "en"
+    )
+    assert result["saved"] and "confirmation" not in result
+    assert "Choose a listed option." in transcript
+    assert transcript.count("Use these models for this project?") == 2
+    assert result["policy"]["roles"]["coordinator"]["model"] == "vendor/quick"
+    assert result["policy"]["roles"]["worker"]["model"] == "vendor/steady"
+    assert cli(root, "portable-lead", "intake")["model_choice"] == result["policy"]
+    assert respond("")[1] == ""
+    cli(root, "portable-lead", "init", "--goal", "Review the source archive", "--git", "none")
+    assert cli(root, "", "--actor", "portable-lead", "intake")["actor"] == "lead"
+    no_terminal = team["execute_request"](
+        {"argv": ["model-choice", "--interactive"], "actor": "portable-lead", "project": str(root)},
+        team["build_parser"](),
+    )
+    assert not no_terminal["ok"] and "requires a live terminal" in no_terminal["error"]
+
+
 if __name__ == "__main__":
     with TemporaryDirectory() as temp:
         root = Path(temp) / "project"
         root.mkdir()
         verify(root)
-    print("OK: four model presets, first use, repair, worker routing, reviewer and retained preferences")
+        verify_terminal(Path(temp) / "terminal")
+    print(
+        "OK: four presets, role choices, confirmation, terminal, cleanup on cancellation and retained preferences"
+    )

@@ -83,6 +83,7 @@ def arguments():
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="original project directory")
+    parser.add_argument("--actor", dest="actor_id", type=nonempty, help="the caller's session or board owner ID")
     cmds = parser.add_subparsers(dest="cmd", required=True)
     storage = cmds.add_parser("storage", help="show the board used by hooks and CLI")
     storage.add_argument("--workspace", action="store_true", help="place a new board in the project, preserving existing boards")
@@ -589,29 +590,37 @@ def intake(root, path, actor):
     return result
 
 
-def choose_models(root, path, a, actor):
+def choose_models(root, path, a, actor, *, stderr):
+    terminal_output = sys.stderr if stderr is None else stderr
+    if a.interactive:
+        require(sys.stdin.isatty() and terminal_output.isatty(),
+                "--interactive requires a live terminal; use model-choice JSON in a host UI")
+    if a.apply or a.interactive:
+        require(actor, "supply the caller's --actor or CODEX_THREAD_ID")
+        require(not (root / "AGENT_STOP").exists(), "AGENT_STOP")
     catalog = model_policy["catalog"](root, a, hk.load("context")["codex_request"] if a.codex else None)
-    if not a.apply:
-        saved = None
-        if path.is_file():
-            with closing(sqlite3.connect(path.as_uri()+"?mode=ro", uri=True, timeout=8)) as db:
-                saved = model_policy["read"](db)
-        return model_policy["profiles"](a,saved,catalog)
-    require(actor and not (root/"AGENT_STOP").exists(), "active chat required and AGENT_STOP must be cleared")
-    if not path.is_file():
-        preview = model_policy["profiles"](a,None,catalog)
-        if preview["status"] != "ready":
-            return preview
-        path.parent.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(path,timeout=8)) as db,db:
+    saved = None
+    if path.is_file():
+        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=8)) as db:
+            saved = model_policy["read"](db)
+    if a.interactive:
+        result = model_policy["terminal"](a, saved, catalog, sys.stdin, terminal_output)
+    else:
+        result = model_policy["profiles"](a, saved, catalog)
+    if result["status"] != "ready" or not (a.apply or a.interactive):
+        return result
+    require(not (root / "AGENT_STOP").exists(), "AGENT_STOP")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(path, timeout=8)) as db, db:
         db.execute("BEGIN IMMEDIATE")
         if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project'").fetchone():
             lead = db.execute("SELECT lead FROM project").fetchone()
-            require(not lead or lead[0]==actor,"only the project lead can save model choices")
-        result=model_policy["profiles"](a,model_policy["read"](db),catalog)
-        if result["status"]=="ready":
-            model_policy["write"](db,result["policy"])
-            result["saved"]=True
+            require(not lead or lead[0] == actor, "only the project lead can save model choices")
+        require(model_policy["read"](db) == saved, "model choices changed; preview the current selection again")
+        if result["policy"] != saved:
+            model_policy["write"](db, result["policy"])
+        result.pop("confirmation", None)
+        result["saved"] = True
         return result
 
 
@@ -627,7 +636,8 @@ def run(a, actor, *, stdout=None, stderr=None):
         print(json.dumps(intake(root, path, actor), ensure_ascii=False), file=stdout)
         return
     if a.cmd == "model-choice":
-        print(json.dumps(choose_models(root,path,a,actor),ensure_ascii=False,separators=(",", ":")),file=stdout)
+        result = choose_models(root, path, a, actor, stderr=stderr)
+        print(json.dumps(result, ensure_ascii=False, separators=(",", ":")), file=stdout)
         return
     if a.cmd == "inbox":
         require(path.is_file(), "no team board for this project")
@@ -778,7 +788,7 @@ def run_rpc(a):
     if argv[:1] == ["--"]:
         argv = argv[1:]
     return hk.load("hk_call")["call"](harness_ns["data_directory"]() / "serve.port", a.project or Path.cwd(),
-                                      a.actor or os.environ.get("CODEX_THREAD_ID"), argv)
+                                      a.actor or a.actor_id or os.environ.get("CODEX_THREAD_ID"), argv)
 
 
 def main():
@@ -787,7 +797,7 @@ def main():
         return serve(a)
     if a.cmd == "rpc":
         return run_rpc(a)
-    run(a, os.environ.get("CODEX_THREAD_ID"))
+    run(a, a.actor_id or os.environ.get("CODEX_THREAD_ID"))
 
 
 if __name__ == "__main__":

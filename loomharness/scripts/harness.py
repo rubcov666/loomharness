@@ -172,7 +172,7 @@ def session_hint(db, root, session, *, only_if_new=False, board=None):
         return "AGENT_STOP: stop work and report status in the user's language."
     has_team, policy = board if board is not None else board_settings(root)
     if session:
-        version = ("team-org-v8" if has_team else "project-v11") + ("-git" if policy else "")
+        version = ("team-org-v8" if has_team else "project-v12") + ("-git" if policy else "")
         receipt = hashlib.sha256((version + "\0" + session + "\0" + os.path.normcase(str(root))).encode("utf8")).digest()
         inserted = db.execute("INSERT OR IGNORE INTO delegation_notices VALUES (?)", (receipt,)).rowcount
         if only_if_new and not inserted:
@@ -183,7 +183,8 @@ def session_hint(db, root, session, *, only_if_new=False, board=None):
                      "to the coordinator at turn end. The coordinator asks the owner. Use inbox --next; wake reviewers on a submitted SHA. ")
     else:
         team_hint = ("Handle short tasks here. While agents run, take one independent planned step or wait. "
-                     "Resume reviewers on a submitted revision (references/team.md). ")
+                     "Resume reviewers on a submitted revision (references/team.md). "
+                     "For a new team, use the interactive model-choice flow in references/adaptive-team.md. ")
     git_hint = ""
     if not policy:
         git_hint = "At first planning, confirm the project's Git choice and save it with team.py git-choice. "
