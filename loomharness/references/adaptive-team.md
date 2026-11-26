@@ -17,9 +17,19 @@ Run the commands below via `scripts/team.py --project DIRECTORY` from the role's
 * On delay read the worker's last event. Wait for a running external process. Move the next stage to `diagnosis` for a new root cause or conflicting results. For a remaining formal step use `bounded` with its work type. Use the model selected by the board.
 * `standard` uses the default model. `diagnosis` and a repeat return after two failed attempts use the stronger model. The default model handles bounded work until a fast model qualifies and takes over bounded cards after a return. Returning a result involving a qualified fast model revokes qualification for that model pair and work type. A strong independent reviewer checks quality.
 
+## First team model choice
+
+Before first team setup, use `team.py model-choice --codex` with Codex. It reads the current client's model list without starting a model turn. Use `--lang ru` for the supplied Russian text. For other clients, pass a verified catalog as `--catalog FILE`, an array of objects with `id` and optional `label`, `default`, `tier` (`strong` or `fast`), `effort` and `efforts`. Without a catalog, ask the user to select an available model in their client and use its confirmed ID. A client default is not necessarily the model of the open chat.
+
+Show the four choices first. After the user chooses one, run `model-choice --preset current|balanced|strong|manual` with the same catalog source and any confirmed IDs. Use `--current MODEL [--current-effort LEVEL]` for the open chat, `--strong MODEL [--worker MODEL]` for balanced or strong, or `--coordinator MODEL --worker MODEL --reviewer MODEL` for manual assignment. Balanced and manual also accept `--routine MODEL` or `--no-routine`. Ask only the unresolved question(s) returned in `questions`. If several strong models are available and the catalog does not identify one uniquely, ask the user to choose.
+
+Show the exact role assignments from `policy`. Save the confirmed selection with `--apply`, then use `init --goal "…"` on a new board. On an existing board only the coordinator can save a change. Pass the model and supported effort from `dispatch`, `review` or `next-stage` for each new assignment. The coordinator profile is the requested setting for the coordinator's next turn. Select it in the client when the current chat cannot change its own model. A headless driver without per-assignment model support needs a driver that supports explicit model selection to apply this policy.
+
+Refresh the catalog if the client rejects a recorded model and ask about that role. Do not substitute a different model without owner approval. A selected routine model receives formal work after paired qualification. For the current and strong presets, routine switching is disabled.
+
 ## Qualifying models on historical tasks
 
-1. Set a routine model candidate in `.codex/harness-models.json`, for example `{"routine":"model-name"}`. The default model is the project's `--simple-model`. Compare for a new work type or model change. Ordinary dispatch creates no evaluation chats.
+1. Set the routine candidate through the project model choice. A legacy board without a selection can use `.codex/harness-models.json`, for example `{"routine":"model-name"}`. The baseline is the project's worker model. Compare for a new work type or model change. Ordinary dispatch creates no evaluation chats.
 2. Prepare accepted and returned revisions with known errors and edge cases. For each case, write a neutrally named immutable project file with task, inputs and criteria. Exclude old verdicts, answers and revealing filenames. In the private manifest list real review-job and card pairs.
 
    ```json

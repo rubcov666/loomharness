@@ -28,6 +28,8 @@ The ZIP contains the installer, tools, integrations and documentation. Installat
 
 ## Token benchmarks
 
+On two Codex tasks, GPT-6.2 Sol used **35,300 total tokens with LoomHarness vs. 75,214 without (53.07% fewer)**. GPT-6.2 Astra used **35,176 vs. 75,091 (53.16% fewer)**. Both modes passed the same checks. [Input, cache, output and estimated API costs](docs/benchmarks.md#whole-task-token-usage-in-codex)
+
 ### Measured over eight requests
 
 Twelve synthetic build logs contained the limits, exceptions, source references and retry rule needed for one report. The replay counted cumulative input and output, including repeated history, summaries and a follow-up search. [Replay method and exact counts](docs/benchmarks.md#eight-request-build-investigation)
@@ -64,11 +66,12 @@ In a separate 200,000-line log, the answer “200 matches” took **12 tokens**,
 | `history.py budget` · `harness_context_budget` | Weighs the cost of a summary and rereading details against carrying history into future requests. Use it to decide when to compact. |
 | `context.py reuse` · `context.py build-check` | The first compares fingerprints of inputs and saved results. The second matches recorded checks to a specific build. Use them before repeating work. |
 | `metrics.py --summary` · `harness_metrics` | Reads time-series data locally and returns coverage, missing samples, the peak and alert counts. Use it to investigate a threshold from a large report. |
+| `records.py FILE --spec query.json` · `harness_records` | Filters logs and table exports. Returns counts, sums and source references for a limited sample of matching records. [Query options](loomharness/references/context.md#summarize-records-locally) |
 | `team.py` · `team.py usage` | Tracks task owners, handoffs and reviews. Its usage report collects recorded input, cached input and output for the selected chat and its local agents. |
 | `context.py audit` · `harness.py doctor` | The audit finds repeated instructions and lists configured MCP servers. The doctor reports hook registration and observed events. Use them when troubleshooting your setup. |
 
 ## Other clients
 
-The installer also supports Claude Code and Gemini CLI. OpenCode has a plugin. In a stdio MCP client, set the command to your Python executable and the argument to the absolute path to `loomharness/scripts/mcp_server.py`. The five `harness_*` tools in the table are available through MCP. [Client setup and support](integrations/README.md)
+The installer also supports Claude Code and Gemini CLI. OpenCode has a plugin. In a stdio MCP client, set the command to your Python executable and the argument to the absolute path to `loomharness/scripts/mcp_server.py`. The `harness_*` tools in the table are available through MCP. [Client setup and support](integrations/README.md)
 
 [Command reference](loomharness/references/commands.md) · [Context and history](loomharness/references/history.md) · [Working with agents](loomharness/references/team.md) · [MIT license](LICENSE)

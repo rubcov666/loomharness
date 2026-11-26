@@ -76,7 +76,7 @@ def candidates(db, run):
     ]
 
 
-def side(db, project, a):
+def side(db, a, model, thinking):
     run = current(db, a.id)
     require(run and a.task in candidates(db, run), "no independent short review available in this run")
     card = db.execute(
@@ -91,8 +91,8 @@ def side(db, project, a):
     return {
         "operation": "send_message_to_thread",
         "threadId": owner,
-        "model": project["strong_model"],
-        "thinking": "medium",
+        "model": model,
+        "thinking": thinking,
         "brief": {"job": a.id, "kind": "review", "card": dict(card), "already_claimed": True},
     }
 

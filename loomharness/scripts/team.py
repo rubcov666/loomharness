@@ -27,6 +27,7 @@ harness_ns = hk.load("harness")
 board_path = harness_ns["team_board"]
 flow = hk.load("team_flow")
 models, queue = flow["models"], flow["queue"]
+model_policy = flow["model_policy"]
 initiative = hk.load("initiative")
 ON_BLOCKER = ("Continue available work. At turn end, tell the coordinator what blocks you, what you checked, "
               "and which answer you need. The coordinator asks the owner.")
@@ -112,10 +113,12 @@ def build_parser():
     flow["git_options"](init)
     flow["add_commands"](cmds, nonempty)
     models["arguments"](cmds, nonempty)
+    model_policy["arguments"](cmds, nonempty)
     queue["arguments"](cmds, nonempty, hours)
     initiative["arguments"](cmds, nonempty, hours)
-    for key in ("goal", "simple-model", "strong-model"):
-        init.add_argument("--" + key, required=True, type=nonempty)
+    init.add_argument("--goal", required=True, type=nonempty)
+    init.add_argument("--simple-model", type=nonempty)
+    init.add_argument("--strong-model", type=nonempty)
     init.add_argument("--mode", choices=("roles", "tasks", "pipeline"), default="roles")
     init.add_argument("--slots", type=int, default=1)
     init.add_argument("--hours-per-role", type=hours)
@@ -246,10 +249,19 @@ def initialize(db, a, actor):
     for statement in SCHEMA:
         db.execute(statement)
     require(not db.execute("SELECT 1 FROM project").fetchone(), "board already initialized; use plan")
+    policy = model_policy["read"](db)
+    if policy:
+        simple = policy["roles"]["worker"]["model"]
+        strong = policy["roles"]["reviewer"]["model"]
+        require(a.simple_model in (None,simple) and a.strong_model in (None,strong),
+                "use the saved model choice or update it with model-choice")
+    else:
+        simple, strong = a.simple_model, a.strong_model
+        require(simple and strong, "confirm a model choice or supply --simple-model and --strong-model")
     now = time.time()
     db.execute("""INSERT INTO project(id,goal,lead,mode,slots,hours_per_role,simple_model,strong_model,created)
                   VALUES (1,?,?,?,?,?,?,?,?)""",
-               (a.goal, actor, a.mode, a.slots, a.hours_per_role, a.simple_model, a.strong_model, now))
+               (a.goal, actor, a.mode, a.slots, a.hours_per_role, simple, strong, now))
     db.execute("INSERT INTO windows VALUES(?,NULL)", (now,))
     ids = []
     if a.cards:
@@ -352,6 +364,8 @@ def dispatch(db, p, t, a, root):
         binary = DRIVER_BINARY.get(drv, drv)
         require(shutil.which(binary), f"CLI '{binary}' not found on PATH. Install it or restore desktop mode: "
                                       f"team.py driver set claude|gemini|antigravity|opencode|dsh")
+        require(drv not in ("opencode","dsh") or not model_policy["read"](db),
+                f"the {drv} headless driver does not apply per-assignment models; use a driver with model selection")
         helper = Path(__file__).resolve().with_name("team_driver.py")
         result = {"operation": "run_command",
                   "command": [Path(sys.executable).resolve().as_posix(), "-I", "-X", "utf8", helper.as_posix(),
@@ -536,12 +550,13 @@ def intake(root, path, actor):
     """Discover an existing team before reading project notes or asking the owner."""
     if (root / "AGENT_STOP").exists():
         return {"stage": "stopped"}
-    policy = None
+    policy = saved_models = None
     if path.is_file():
         with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=8)) as db:
             db.row_factory = sqlite3.Row
             db.execute("BEGIN")
             policy = flow["git_choice"](db)
+            saved_models = model_policy["read"](db)
             exists = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project'").fetchone()
             project = db.execute("SELECT lead,goal,mode,paused FROM project").fetchone() if exists else None
             if project:
@@ -554,6 +569,8 @@ def intake(root, path, actor):
                 if initiative["current"](db):
                     result["survey"] = True
                 if actor == project["lead"]:
+                    if saved_models:
+                        result["model_choice"] = saved_models
                     return dict(result, actor="lead")
                 if chat:
                     kind = chat["slot"].removeprefix("service/") if chat["slot"] in flow["STAGES"].values() else "worker"
@@ -564,7 +581,38 @@ def intake(root, path, actor):
     read = hk.load("plan")
     docs = (*read["DEFAULT_DOCS"], "BRIEF.md", "README.md", "README.txt", "README", "Описание.md")
     notes = read["for_prompt"](root, "what is next", default_docs=docs, budget=2000)
-    return {"stage": "new", "project_notes": notes, **({"git": policy} if policy else {})}
+    result = {"stage": "new", "project_notes": notes}
+    if policy:
+        result["git"] = policy
+    if saved_models:
+        result["model_choice"] = saved_models
+    return result
+
+
+def choose_models(root, path, a, actor):
+    catalog = model_policy["catalog"](root, a, hk.load("context")["codex_request"] if a.codex else None)
+    if not a.apply:
+        saved = None
+        if path.is_file():
+            with closing(sqlite3.connect(path.as_uri()+"?mode=ro", uri=True, timeout=8)) as db:
+                saved = model_policy["read"](db)
+        return model_policy["profiles"](a,saved,catalog)
+    require(actor and not (root/"AGENT_STOP").exists(), "active chat required and AGENT_STOP must be cleared")
+    if not path.is_file():
+        preview = model_policy["profiles"](a,None,catalog)
+        if preview["status"] != "ready":
+            return preview
+        path.parent.mkdir(parents=True, exist_ok=True)
+    with closing(sqlite3.connect(path,timeout=8)) as db,db:
+        db.execute("BEGIN IMMEDIATE")
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='project'").fetchone():
+            lead = db.execute("SELECT lead FROM project").fetchone()
+            require(not lead or lead[0]==actor,"only the project lead can save model choices")
+        result=model_policy["profiles"](a,model_policy["read"](db),catalog)
+        if result["status"]=="ready":
+            model_policy["write"](db,result["policy"])
+            result["saved"]=True
+        return result
 
 
 def run(a, actor, *, stdout=None, stderr=None):
@@ -577,6 +625,9 @@ def run(a, actor, *, stdout=None, stderr=None):
     path = board_path(root)
     if a.cmd == "intake":
         print(json.dumps(intake(root, path, actor), ensure_ascii=False), file=stdout)
+        return
+    if a.cmd == "model-choice":
+        print(json.dumps(choose_models(root,path,a,actor),ensure_ascii=False,separators=(",", ":")),file=stdout)
         return
     if a.cmd == "inbox":
         require(path.is_file(), "no team board for this project")

@@ -1,0 +1,51 @@
+{
+  "codex": "codex-cli 0.171.0-alpha.13.2",
+  "model": "gpt-6.2-sol",
+  "effort": "low",
+  "runs": [
+    {
+      "task": "build_task",
+      "pair": 1,
+      "mode": "without",
+      "input_tokens": 44228,
+      "cached_input_tokens": 14208,
+      "output_tokens": 63,
+      "total_tokens": 44291,
+      "seconds": 6.92,
+      "accepted": true
+    },
+    {
+      "task": "build_task",
+      "pair": 1,
+      "mode": "with",
+      "input_tokens": 17679,
+      "cached_input_tokens": 14208,
+      "output_tokens": 63,
+      "total_tokens": 17742,
+      "seconds": 6.26,
+      "accepted": true
+    },
+    {
+      "task": "ledger_task",
+      "pair": 1,
+      "mode": "with",
+      "input_tokens": 17536,
+      "cached_input_tokens": 14208,
+      "output_tokens": 22,
+      "total_tokens": 17558,
+      "seconds": 5.5,
+      "accepted": true
+    },
+    {
+      "task": "ledger_task",
+      "pair": 1,
+      "mode": "without",
+      "input_tokens": 30870,
+      "cached_input_tokens": 14208,
+      "output_tokens": 53,
+      "total_tokens": 30923,
+      "seconds": 6.37,
+      "accepted": true
+    }
+  ]
+}

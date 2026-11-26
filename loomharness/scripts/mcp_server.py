@@ -1,7 +1,7 @@
 """MCP server exposing the portable loomharness core to any MCP-capable agent.
 
-Read-only local tools: compact file views, exact-text search, lexical code map
-and telemetry windows. Stdio JSON-RPC, standard library only. Add to an agent
+Read-only local tools: compact file views, exact-text search, lexical code map,
+record summaries and telemetry windows. Stdio JSON-RPC, standard library only. Add to an agent
 as a stdio MCP server pointing at this file with the same Python (3.11+).
 """
 
@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import context
 import history
 import metrics
+import records
 import view
 
 NAME = "loomharness"
@@ -116,6 +117,23 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "harness_records",
+        "description": "Filter and summarize local log, CSV, TSV, JSON or JSONL records with source locations.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "root": {"type": "string", "description": "Optional allowed root."},
+                "format": {"enum": ["auto", "json", "jsonl", "csv", "tsv", "log"]},
+                "rows_key": {"type": "string", "description": "Top-level array key for a JSON object."},
+                "pattern": {"type": "string", "description": "Python regex with named captures for text logs."},
+                "query": {"type": "object", "description": "where, gte, lt, fields, group, sums, limit, offset, group_limit."},
+            },
+            "required": ["path"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -166,6 +184,11 @@ def call_tool(name, arguments):
         data = metrics.read_series(resolve_path(args["path"], args.get("root"))) if "path" in args else args["data"]
         result = metrics.summarize(data, args.get("threshold", 0), summary=args.get("summary", False))
         text = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+    elif name == "harness_records":
+        path = resolve_path(args["path"], args.get("root"))
+        text = records.compact(records.inspect(path, source_format=args.get("format","auto"),
+                                              rows_key=args.get("rows_key"), pattern=args.get("pattern"),
+                                              query=args.get("query")))
     else:
         raise ValueError(f"Unknown tool: {name}")
     return [{"type": "text", "text": text}]
@@ -191,7 +214,7 @@ def handle(message):
         try:
             content = call_tool(params.get("name"), params.get("arguments"))
             return {"result": {"content": content, "isError": False}}
-        except (OSError, ValueError, KeyError, TypeError, RecursionError) as exc:
+        except (OSError, ValueError, KeyError, TypeError, RecursionError, OverflowError) as exc:
             return {"result": {"content": [{"type": "text", "text": str(exc)}], "isError": True}}
     if method in ("notifications/initialized", "notifications/cancelled"):
         return None

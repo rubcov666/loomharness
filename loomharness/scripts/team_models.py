@@ -16,6 +16,7 @@ except ImportError:  # python -I excludes the script directory from sys.path
     import hk
 
 STAGES = ("bounded", "standard", "diagnosis", "waiting")
+model_policy = hk.load("model_policy")
 
 
 def check(value, message):
@@ -31,7 +32,9 @@ def read(path):
     return json.loads(sys.stdin.read() if str(path) == "-" else path.read_text(encoding="utf-8-sig"))
 
 
-def fast_model(root):
+def fast_model(root, db=None):
+    if db is not None and (policy := model_policy["read"](db)):
+        return policy["routine"]["model"] if policy.get("routine") else None
     path = root / ".codex/harness-models.json"
     if path.is_file():
         config = read(path)
@@ -62,7 +65,7 @@ def artifact(root, name):
 
 
 def prepare(db, p, root, a):
-    fast = fast_model(root)
+    fast = fast_model(root, db)
     check(
         fast and fast not in (p["simple_model"], p["strong_model"]),
         "configure a distinct routine model for the trial",
@@ -167,7 +170,7 @@ def score(path, root, a, actor):
         trial = db.execute("SELECT * FROM model_trials WHERE id=?", (a.batch,)).fetchone()
         check(trial and trial["state"] != "revoked", "unknown or revoked evaluation")
         check(
-            trial["base"] == p["simple_model"] and trial["fast"] == fast_model(root),
+            trial["base"] == p["simple_model"] and trial["fast"] == fast_model(root, db),
             "model configuration changed",
         )
         return trial
@@ -249,11 +252,12 @@ def route(db, p, root, task, tier, work_type, stage, *, checkpoint=False):
     kind = work_type or (previous[0] if previous else None)
     stage = stage or {"routine": "bounded", "strong": "diagnosis", "simple": "standard"}[tier]
     check(stage != "waiting", "waiting does not dispatch a worker")
-    model, effort, trial = p["simple_model"], "low", None
+    model, effort = model_policy["assignment"](db,p,"worker")
+    trial = None
     if stage == "diagnosis" or task["returns"] >= 2:
-        model, effort = p["strong_model"], "medium"
+        model, effort = model_policy["assignment"](db,p,"reviewer")
     elif stage == "bounded" and not task["returns"]:
-        candidate = fast_model(root)
+        candidate = fast_model(root, db)
         row = None
         if candidate and kind and table(db, "model_trials"):
             row = db.execute(
@@ -262,7 +266,7 @@ def route(db, p, root, task, tier, work_type, stage, *, checkpoint=False):
                 (kind, model, candidate),
             ).fetchone()
         if row and row["state"] == "approved":
-            model, trial = candidate, row["id"]
+            model, effort, trial = candidate, "low", row["id"]
     db.execute("INSERT OR REPLACE INTO model_routes VALUES(?,?,?,?,?)", (task["id"], kind, stage, model, trial))
     db.execute("""CREATE TABLE IF NOT EXISTS trial_exposure(task INTEGER REFERENCES tasks,trial INTEGER,
                   PRIMARY KEY(task,trial))""")

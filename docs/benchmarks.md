@@ -1,5 +1,46 @@
 # LoomHarness benchmarks
 
+## Whole-task token usage in Codex
+
+Two generated tasks ran on GPT-6.2 Sol and GPT-6.2 Astra in Codex CLI 0.171.0-alpha.13.2 on November 26, 2026. Each task used the same question, model, low reasoning effort and exact expected JSON with and without LoomHarness. There was one request per run and no subagents.
+
+- **Build logs.** Find every failure code and its exact line across three 470-line logs. The baseline supplies the full logs. LoomHarness supplies the `view.py --find` results, including the line numbers and files with no match.
+- **Tabular export.** Filter 1,800 TSV records by service, status and event range, count them, sum their durations and return the first two source lines. The baseline supplies the full table. LoomHarness supplies the result of a local `records.py` query.
+
+The runner prepares both inputs locally and passes the evidence in the first prompt. The comparison measures the effect of preselecting evidence versus sending full files. A baseline that filters locally with another tool may use similar amounts of context. The runner validates every answer against the expected JSON, including source lines and totals. It reads tokens from the Codex `turn.completed` event. Input includes cached input. The total adds input and output.
+
+| Model | Mode | Accepted | Input tokens | Cached input | Output tokens | Total tokens | Estimated API USD |
+|---|---|---:|---:|---:|---:|---:|---:|
+| GPT-6.2 Sol | Without LoomHarness | 2/2 | 75,098 | 28,416 | 116 | 75,214 | $0.097366 |
+| GPT-6.2 Sol | With LoomHarness | 2/2 | 35,215 | 28,416 | 85 | 35,300 | $0.017290 |
+| GPT-6.2 Astra | Without LoomHarness | 2/2 | 75,002 | 28,160 | 89 | 75,091 | $0.389560 |
+| GPT-6.2 Astra | With LoomHarness | 2/2 | 35,109 | 30,720 | 67 | 35,176 | $0.050080 |
+
+Across the two tasks, Sol saved **39,914 tokens (53.07%)** and an estimated **$0.080076 (82.24%)**. Astra saved **39,915 tokens (53.16%)** and an estimated **$0.339480 (87.14%)**. Dollar percentages differ from token percentages because cached reads cost less than ordinary input. Astra also had 2,560 more cached input tokens in the LoomHarness runs. Cache hits can vary on repeat runs. [Sol raw measurements](task-usage-sol.json) · [Astra raw measurements](task-usage-astra.json)
+
+### OpenAI API Standard prices
+
+These are the USD rates per million tokens as of November 26, 2026. [OpenAI API pricing](https://developers.openai.com/api/docs/pricing)
+
+| Model | Uncached input | Cached input | Output | 1M uncached input plus 1M output |
+|---|---:|---:|---:|---:|
+| GPT-6.2 Sol | $2.00 | $0.10 | $10.00 | $12.00 |
+| GPT-6.2 Astra | $8.00 | $0.40 | $40.00 | $48.00 |
+
+`USD = ((input − cached) × uncached_rate + cached × cached_rate + output × output_rate) ÷ 1,000,000`
+
+The estimates apply API list prices to the observed Codex token mix. An API run may have a different cache profile. The projection prices model tokens at ordinary Standard rates and excludes explicit cache writes, tool fees and taxes. Subscription usage is metered separately. [GPT-6.2 Sol pricing details](https://developers.openai.com/api/docs/models/gpt-6.2-sol) · [GPT-6.2 Astra pricing details](https://developers.openai.com/api/docs/models/gpt-6.2-astra)
+
+### Reproduce the paired measurement
+
+The first command recomputes the table from the checked-in counters without calling a model. The last two commands make fresh Codex requests and use the account's allowance. Use Python 3.11+ and an authenticated Codex CLI with access to the chosen models. Add `--pairs N` to repeat each comparison with alternating order.
+
+```sh
+python -X utf8 tests/measure_task_usage.py --report docs/task-usage-sol.json docs/task-usage-astra.json
+python -X utf8 tests/measure_task_usage.py --model gpt-6.2-sol --output sol-new.json
+python -X utf8 tests/measure_task_usage.py --model gpt-6.2-astra --output astra-new.json
+```
+
 ## Six tool-output measurements
 
 The six CLI tasks in the [README](../README.md#token-benchmarks) use generated data. Each pair asks the same question twice and checks the answer. The runner counts the UTF-8 text the tool returns, including diagnostics and trailing newlines, using `o200k_base`. The baseline outputs total 15,008 tokens. The LoomHarness outputs total 1,346. The 91.0% reduction is calculated from these totals.
