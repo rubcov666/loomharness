@@ -15,6 +15,7 @@ PYTHON_CHECKS = (
     "verify_records.py",
     "verify_plan.py",
     "verify_team.py",
+    "verify_native_team.py",
     "verify_organization.py",
     "verify_initiative.py",
     "verify_efficiency.py",

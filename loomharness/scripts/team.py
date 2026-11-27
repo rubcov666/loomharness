@@ -81,7 +81,7 @@ def arguments():
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, epilog="Use team.py native --help for named native agents.")
     parser.add_argument("--project", type=Path, default=Path.cwd(), help="original project directory")
     parser.add_argument("--actor", dest="actor_id", type=nonempty, help="the caller's session or board owner ID")
     cmds = parser.add_subparsers(dest="cmd", required=True)
@@ -792,6 +792,8 @@ def run_rpc(a):
 
 
 def main():
+    if sys.argv[1:2] == ["native"]:
+        return hk.load("team_native")["main"](sys.argv[2:])
     a = arguments()
     if a.cmd == "serve":
         return serve(a)
