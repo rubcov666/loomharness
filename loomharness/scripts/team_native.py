@@ -197,9 +197,12 @@ def review_batch(db, project):
         return []
     first, *rest = rows
     batch = [first]
-    if first["quick"] and not first["blocking"]:
-        batch.extend([r for r in rest if r["quick"] and not r["blocking"] and
-                      (r["role"] == first["role"] or r["revision"] == first["revision"])][:2])
+    if not first["blocking"]:
+        related = [r for r in rest if not r["blocking"] and (
+            r["revision"] == first["revision"] or (first["quick"] and r["quick"] and r["role"] == first["role"])
+        )]
+        related.sort(key=lambda r: r["revision"] != first["revision"])
+        batch.extend(related[:2])
     return [{"id": r["id"], "revision": r["revision"], "role": r["role"]} for r in batch]
 
 
