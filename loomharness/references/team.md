@@ -1,5 +1,17 @@
 # Running a project across Codex chats
 
+## Named native agents
+
+Use this workflow from the coordinator when the current task authorizes delegation and the host provides named `spawn_agent`, follow-up and agent status tools. The Codex desktop and CLI can use the same project board through `team.py native`. Keep the normal `team.py` workflow on hosts without these tools. Use the `native` prefix consistently for the coordinator and its agents.
+
+1. Run `team.py native intake`. Keep the existing board if it exists. Use the model questionnaire for a new team. For a new board, `team.py native init --slots 3 --goal "…"` allows the adapter to reserve two assignments by default and a justified third. To use independent review, initialize the organizational workflow with `team.py native organize` and define the areas, criteria and Git policy. Existing boards keep their narrower capacity limits.
+2. Use `team.py native dispatch CARD --available AGENT`. Pass `--available AGENT` once per idle live candidate. Pass `--available none` when the exact role name is absent from the native roster. A default assignment uses `developer`. The coordinator can give a card another work role with `--agent-role designer`, `--agent-role tester`, or another short lowercase name made of letters and underscores. A role is an ongoing responsibility. Put the specific subject and allowed changes in the card's scope. Create extra roles only for work that is ready and requires them.
+3. For a `spawn_agent` response, use the exact returned `taskName` with `fork_turns=none` and the selected model and effort. Bind it with `bind CARD TICKET ID` or `job-bind JOB TICKET ID`. For `send_input` use the host's follow-up tool and the new brief and ticket. The follow-up is already bound. The worker or service agent claims its ticket before work. Send only the relevant changes, evidence and acceptance criterion.
+4. Keep one agent per role and queue another assignment if that role is working or reserved. Two assignments can run by default. To use `--third-slot REASON`, report the agreed deliverable it unblocks and the separate declared resources. The third assignment must have a different role. If a role needs a different model or a fresh context, use the host's lifecycle controls and confirm that the old role name is available before starting its replacement. Always keep the exact same name and preserve the old result on the board.
+5. Use `team.py native status [CARD ...]` for concise status. Read it once after an agent event, or use `status --after CURSOR --wait 30` with the same card IDs for a board-only wait. Use `review-next` to reserve review on a ready revision. It starts blocking cards immediately and can group up to three already-ready short related cards. The single `reviewer` records a separate verdict for each revision. Use `delivery` with the `release` role for an authorized handoff or release.
+
+Measure the coordinator and its subagents together with `team.py usage --thread ID --since START --until END`. Use the same tasks and revision acceptance criteria for each comparison. [Usage windows](telemetry.md)
+
 ## Starting in a project directory
 
 `team.py storage` shows the board used by hooks, the CLI and `serve`. To place a new board in the workspace, run `team.py storage --workspace` once. The profile creates a project symlink on systems that support it. An existing board keeps its location and reports its actual path. Reconcile two distinct databases before moving data.

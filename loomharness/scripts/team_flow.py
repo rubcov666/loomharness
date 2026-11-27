@@ -394,7 +394,8 @@ def service(db, p, root, a, actor):
     slot = STAGES[job["kind"]]
     owner = db.execute("SELECT thread FROM chats WHERE slot=?", (slot,)).fetchone()
     if a.cmd == "review-interrupt":
-        check(job["kind"]=="review" and job["state"]=="active" and (lead or (owner and owner[0]==actor)),
+        reviewer, _ = queue["review_owner"](db, a.id)
+        check(job["kind"]=="review" and job["state"]=="active" and (lead or (reviewer and reviewer==actor)),
               "reviewer or coordinator required")
         run=queue["current"](db,a.id)
         check(run and run["run"]==a.run and run["status"]=="running" and time.time()>=run["due"],

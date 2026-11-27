@@ -76,6 +76,15 @@ def candidates(db, run):
     ]
 
 
+def review_owner(db, job):
+    if exists(db, "native_services"):
+        native = db.execute("SELECT actor FROM native_services WHERE job=?", (job,)).fetchone()
+        if native is not None:
+            return native[0], True
+    owner = db.execute("SELECT thread FROM chats WHERE slot='service/review'").fetchone()
+    return (owner[0] if owner else None), False
+
+
 def side(db, a, model, thinking):
     run = current(db, a.id)
     require(run and a.task in candidates(db, run), "no independent short review available in this run")
@@ -87,9 +96,10 @@ def side(db, a, model, thinking):
     db.execute("INSERT INTO job_tasks VALUES(?,?)", (a.id, a.task))
     db.execute("INSERT INTO review_items(job,task,revision) VALUES(?,?,?)", (a.id, a.task, card["revision"]))
     db.execute("UPDATE review_runs SET side=? WHERE job=?", (a.task, a.id))
-    owner = db.execute("SELECT thread FROM chats WHERE slot='service/review'").fetchone()[0]
+    owner, native = review_owner(db, a.id)
+    require(owner, "reviewer must claim the current job")
     return {
-        "operation": "send_message_to_thread",
+        "operation": "send_input" if native else "send_message_to_thread",
         "threadId": owner,
         "model": model,
         "thinking": thinking,
@@ -136,12 +146,12 @@ def run_test(path, root, a, actor, verify, *, stdout=None, stderr=None):
                 not (root / "AGENT_STOP").exists() and not db.execute("SELECT paused FROM project").fetchone()[0],
                 "project is stopped or paused",
             )
-            owner = db.execute("SELECT thread FROM chats WHERE slot='service/review'").fetchone()
+            owner, _ = review_owner(db, a.id)
             job = db.execute(
                 "SELECT * FROM jobs WHERE id=? AND kind='review' AND state='active'", (a.id,)
             ).fetchone()
             require(
-                owner and actor == owner[0] and job and job["ticket"] == a.ticket,
+                owner and actor == owner and job and job["ticket"] == a.ticket,
                 "active reviewer ticket required",
             )
             row = db.execute(
