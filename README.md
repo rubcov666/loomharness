@@ -1,10 +1,10 @@
 # LoomHarness
 
-**English** · [Русский](SIMPLE.md) · Version **1.2.0**
+**English** · [Русский](SIMPLE.md) · Version **1.2.1**
 
 LoomHarness helps AI assistants save tokens on any type of task, from coding and research to working with documents and data. It selects relevant content from files, logs and tables locally while keeping the full source available. It also helps reuse previous checks and organize work across agents.
 
-On clients with named subagents, the coordinator can reuse one agent per role and add roles such as `designer` when the work requires them. [Named agents](loomharness/references/team.md#named-native-agents)
+On clients with named subagents, the coordinator reuses one agent per role and can add roles such as `designer` when needed. Related checks go to one agent, with a separate result for each check. [Named agents](loomharness/references/team.md#named-native-agents)
 
 ## Token and cost savings
 

@@ -33,13 +33,15 @@ def main():
             return call("add", "--role", area, "--title", area, "--scope", area, "--criterion", "Evidence matches",
                         "--resource", area, "--hours", "0.5")["id"]
 
-        def submit(task, ticket, actor):
+        def submit(task, ticket, actor, artifact=None, quick=True):
             call("claim", task, ticket, actor=actor)
-            artifact = project / f"report-{task}.txt"
-            artifact.write_text(f"Evidence for {task}", encoding="utf-8")
+            if artifact is None:
+                artifact = project / f"report-{task}.txt"
+                artifact.write_text(f"Evidence for {task}", encoding="utf-8")
             revision = sha256(artifact.read_bytes()).hexdigest()
+            flags = ["--quick-review"] if quick else []
             call("submit", task, ticket, "Checked", "--revision", revision, "--artifact", artifact.name,
-                 "--quick-review", actor=actor)
+                 *flags, actor=actor)
             return revision
 
         call("init", "--goal", "Make the documentation usable", "--slots", 3,
@@ -90,7 +92,31 @@ def main():
         next_job = call("review-next", "--available", reviewer)
         assert next_job["operation"] == "send_input" and next_job["threadId"] == reviewer
         assert next_job["brief"]["revision"] == second_revision
-        print("PASS: custom named roles, scoped slots, repeat assignments, event status and independent review")
+        job = next_job["brief"]
+        call("job-claim", job["job"], job["ticket"], actor=reviewer)
+        call("verdict", job["job"], job["ticket"], "approve", "Evidence matches", "--revision", second_revision,
+             actor=reviewer)
+
+        candidate = project / "shared-candidate.txt"
+        candidate.write_text("The same candidate has two acceptance criteria", encoding="utf-8")
+        related = [card("navigation"), card("style")]
+        for task in related:
+            assignment = call("dispatch", task, "--agent-role", "designer", "--available", designer)["brief"]
+            revision = submit(task, assignment["ticket"], designer, candidate, quick=False)
+        grouped = call("review-next", "--available", reviewer)
+        assert grouped["operation"] == "send_input" and grouped["threadId"] == reviewer
+        job = grouped["brief"]
+        assert [item["id"] for item in job["cards"]] == related
+        assert all(item["revision"] == revision for item in job["cards"])
+        call("job-claim", job["job"], job["ticket"], actor=reviewer)
+        verdict = call("verdicts", job["job"], job["ticket"], "-", actor=reviewer, stdin=json.dumps([
+            {"task": related[0], "revision": revision, "decision": "approve", "note": "Navigation matches"},
+            {"task": related[1], "revision": revision, "decision": "changes", "note": "Style evidence is missing"},
+        ]))
+        assert verdict["state"] == "mixed"
+        assert call("show", related[0], "--brief")["state"] == "accepted"
+        assert call("show", related[1], "--brief")["state"] == "open"
+        print("PASS: named roles, scoped slots, repeat assignments, event status, shared-revision batching and separate verdicts")
 
 
 if __name__ == "__main__":

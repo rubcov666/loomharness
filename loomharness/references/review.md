@@ -4,6 +4,8 @@ The coordinator reads `id, revision` pairs with `team.py inbox --reviews`. Use `
 
 [Coordinator procedure](organization.md) · [Delivery](delivery.md) · [Background review and model selection](adaptive-team.md)
 
+For native teams, use `team.py native review-next` for ready submissions. Give checks of the same pinned revision to the same reviewer. Review blocking cards immediately. Record verdicts per card and use a follow-up with the same reviewer for a later related submission.
+
 When a worker submits, use the freed slot for another independent card. Read ready actions from `inbox`. `review_ready` offers up to four submissions. Send a single ready item immediately. Batch short cards with `review ID1 ID2 …` and send one brief to the strong reviewer. Use a separate `review ID` for larger cards. Workers can continue during review. The review pool allows two jobs, so a second can use time while the first waits for a background test. Delivery stays sequential.
 
 A reviewer runs `job-claim JOB TICKET` once, opens the exact revisions and checks the criterion and edge cases. The coordinator can bind the chat first with `job-bind JOB TICKET THREAD`. Return `verdict JOB TICKET approve "reason" --revision HASH` or `changes` with a specific fix. For a verdict within a batch add `--task ID`.
