@@ -33,9 +33,17 @@ def package_version():
 
 VERSION = package_version()
 
+LOCAL_READ_ONLY_ANNOTATIONS = {
+    "readOnlyHint": True,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+}
+
 TOOLS = [
     {
         "name": "harness_context_budget",
+        "annotations": LOCAL_READ_ONLY_ANNOTATIONS,
         "description": "Decide when to compact the active model context and how much to keep. "
                        "Use current input tokens, including cached input once, and the active model window.",
         "inputSchema": {
@@ -56,6 +64,7 @@ TOOLS = [
     },
     {
         "name": "harness_view",
+        "annotations": LOCAL_READ_ONLY_ANNOTATIONS,
         "description": "Read a compact file or a numbered source page. Use start/lines for a known location, "
                        "or fields/base/receipt for an automatic view.",
         "inputSchema": {
@@ -75,6 +84,7 @@ TOOLS = [
     },
     {
         "name": "harness_find",
+        "annotations": LOCAL_READ_ONLY_ANNOTATIONS,
         "description": "Case-sensitive literal search. Return a count or numbered excerpts with context and a continuation.",
         "inputSchema": {
             "type": "object",
@@ -91,6 +101,7 @@ TOOLS = [
     },
     {
         "name": "harness_code_map",
+        "annotations": LOCAL_READ_ONLY_ANNOTATIONS,
         "description": "Lexical code map: find where words from the query are declared, "
                        "one best location per source file (offline, via git grep/rg).",
         "inputSchema": {
@@ -105,6 +116,7 @@ TOOLS = [
     },
     {
         "name": "harness_metrics",
+        "annotations": LOCAL_READ_ONLY_ANNOTATIONS,
         "description": "Summarize telemetry windows. Supply a local path or inline data. Set summary for alert counts.",
         "inputSchema": {
             "type": "object",
@@ -119,6 +131,7 @@ TOOLS = [
     },
     {
         "name": "harness_records",
+        "annotations": LOCAL_READ_ONLY_ANNOTATIONS,
         "description": "Filter and summarize local log, CSV, TSV, JSON or JSONL records with source locations.",
         "inputSchema": {
             "type": "object",
@@ -222,6 +235,10 @@ def handle(message):
 
 
 def main():
+    # Keep Git reads local even when a partial clone is missing an object.
+    os.environ["GIT_NO_LAZY_FETCH"] = "1"
+    # An allowlist with only separators survives Windows dropping empty variables.
+    os.environ["GIT_ALLOW_PROTOCOL"] = ":"
     for line in sys.stdin:
         line = line.strip()
         if not line:
