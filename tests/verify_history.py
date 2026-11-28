@@ -214,8 +214,20 @@ def check_mcp_and_hooks(folder):
     replies = {r["id"]:r["result"] for r in map(json.loads, run("mcp_server.py", stdin=wire).splitlines())}
     assert replies[1]["protocolVersion"] == "2025-06-18" and replies[2] == {}
     assert replies[3]["protocolVersion"] == "2025-11-25" and replies[4]["isError"]
-    assert {t["name"] for t in replies[5]["tools"]} == {
+    tools = replies[5]["tools"]
+    assert len(tools) == 6 and {tool["name"] for tool in tools} == {
         "harness_context_budget", "harness_view", "harness_find", "harness_code_map", "harness_metrics", "harness_records"}
+    expected_annotations = {
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+    for tool in tools:
+        annotations = tool.get("annotations", {})
+        assert annotations == expected_annotations, tool["name"]
+        assert all(type(value) is bool for value in annotations.values()), tool["name"]
+
     def rpc(args):
         message = {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                    "params": {"name": "harness_context_budget", "arguments": args}}
